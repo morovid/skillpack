@@ -1,0 +1,47 @@
+{
+  "name": "@morovid/skillpack",
+  "version": "0.1.0",
+  "description": "Install versioned skill packs with scoped skills and agents to your harnesses.",
+  "license": "MIT",
+  "author": "morovid",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/morovid/skillpack.git"
+  },
+  "keywords": [
+    "skills",
+    "agents",
+    "opencode",
+    "codex",
+    "cli"
+  ],
+  "type": "module",
+  "bin": {
+    "skillpack": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
