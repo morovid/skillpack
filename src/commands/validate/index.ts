@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
-import { createStyle, plural } from "../../core/output.js";
-import type { Diagnostic } from "../../core/diagnostics.js";
+import { createStyle, formatDiagnostics, plural } from "../../core/output.js";
 import { CLI_VERSION } from "../../core/version.js";
 import { UsageError, type Command } from "../types.js";
 import { validatePack } from "./validate-pack.js";
@@ -45,21 +44,7 @@ export const validate: Command = {
     }
 
     const s = createStyle(ctx.color);
-    const groups = new Map<string, Diagnostic[]>();
-    for (const d of diag.items) {
-      const key = d.file ?? "";
-      groups.set(key, [...(groups.get(key) ?? []), d]);
-    }
-    const keys = [...groups.keys()].sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
-    for (const key of keys) {
-      ctx.stdout(`${s.bold(key === "" ? "(pack)" : key)}\n`);
-      for (const d of groups.get(key)!) {
-        const label = d.level === "error" ? s.red("error  ") : s.yellow("warning");
-        const line = d.line !== undefined ? s.dim(`:${d.line}`.padEnd(5)) : "     ";
-        ctx.stdout(`  ${line} ${label}  ${d.message}  ${s.dim(d.code)}\n`);
-      }
-      ctx.stdout("\n");
-    }
+    ctx.stdout(formatDiagnostics(diag.items, s));
 
     if (failed) {
       const note = strict && diag.errorCount === 0 ? " (--strict)" : "";

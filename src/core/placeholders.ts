@@ -87,3 +87,48 @@ export function tokenize(text: string): Token[] {
 export function findPlaceholders(text: string): PlaceholderToken[] {
   return tokenize(text).filter((t): t is PlaceholderToken => t.kind !== "text" && t.kind !== "escape");
 }
+
+export interface PlaceholderResolver {
+  agent(name: string): string;
+  skill(name: string): string;
+  scope: string;
+}
+
+export class PlaceholderError extends Error {
+  constructor(
+    message: string,
+    readonly line: number,
+    readonly col: number,
+  ) {
+    super(`${message} (line ${line}, column ${col})`);
+  }
+}
+
+/** Replaces placeholders; `\{{` becomes a literal `{{`. Throws PlaceholderError on unknown or unclosed ones. */
+export function renderPlaceholders(text: string, resolver: PlaceholderResolver): string {
+  let out = "";
+  for (const t of tokenize(text)) {
+    switch (t.kind) {
+      case "text":
+        out += t.raw;
+        break;
+      case "escape":
+        out += "{{";
+        break;
+      case "scope":
+        out += resolver.scope;
+        break;
+      case "agent":
+        out += resolver.agent(t.name);
+        break;
+      case "skill":
+        out += resolver.skill(t.name);
+        break;
+      case "unclosed":
+        throw new PlaceholderError("unclosed placeholder", t.line, t.col);
+      case "unknown":
+        throw new PlaceholderError(`unknown placeholder ${t.raw}`, t.line, t.col);
+    }
+  }
+  return out;
+}

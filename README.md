@@ -33,14 +33,18 @@ src/help.ts             root and per-command help text
 src/commands/index.ts   command registry (name -> Command)
 src/commands/types.ts   Command interface
 src/commands/<name>/    one folder per command: index.ts (definition and output), checks/ etc.
-src/core/               shared logic: names, paths, schema validator, pack loaders,
-                        frontmatter, placeholders, diagnostics, output, harness, version
+src/core/               shared logic: names, paths, ajv schemas, pack loaders, frontmatter,
+                        placeholders (tokenizer + renderer), render/ (pure skill renderer),
+                        hash, fs/ (tree reader, diff, atomic folder replace), diagnostics, output
 test/                   vitest tests; fixture packs in test/fixtures/packs/
 ```
 
 To add a command, create `src/commands/<name>/index.ts` exporting a `Command`, then add it to the list in `src/commands/index.ts`. Put anything a second command could reuse in `src/core/`.
 
-Currently implemented: `skillpack validate [dir] [--strict] [--json]`.
+Currently implemented:
+
+- `skillpack validate [dir] [--strict] [--json]`
+- `skillpack build [dir] [--check] [--json]`: writes the plain build to `skills/` (owned by `build`: stale folders are removed); `--check` exits 1 if it's out of date.
 
 ## Publishing
 

@@ -26,3 +26,21 @@ export function parseFrontmatter(text: string): Frontmatter {
   }
   return { kind: "ok", data: data as Record<string, unknown>, body };
 }
+
+export interface FrontmatterParts {
+  bom: string;
+  /** The YAML between the fences, including its final newline (empty when there is none). */
+  yaml: string;
+  /** Everything after the closing fence line, including that line's newline. */
+  rest: string;
+  eol: "\n" | "\r\n";
+}
+
+/** Splits raw text at the frontmatter fences without interpreting the YAML. Null when there is none. */
+export function splitFrontmatter(text: string): FrontmatterParts | null {
+  const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const src = text.slice(bom.length);
+  const m = /^---[ \t]*\r?\n((?:[\s\S]*?\r?\n)?)---[ \t]*(?:\r?\n|$)/.exec(src);
+  if (!m) return null;
+  return { bom, yaml: m[1]!, rest: src.slice(m[0].length), eol: src.includes("\r\n") ? "\r\n" : "\n" };
+}
