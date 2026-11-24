@@ -5,7 +5,8 @@ import { sortFiles } from "../fs/tree.js";
 import type { Harness } from "../harness.js";
 import { createInstallContext, renderSkill, type SkillSourceFiles } from "../render/index.js";
 
-export const INSTALLED_SKILLS_DIR = ".agents/skills";
+export { INSTALLED_SKILLS_DIR } from "../project/paths.js";
+import { INSTALLED_SKILLS_DIR } from "../project/paths.js";
 
 export interface InstallPlanInput {
   scope: string;
