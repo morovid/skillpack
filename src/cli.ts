@@ -1,3 +1,4 @@
 #!/usr/bin/env node
+import { main } from "./main.js";
 
-console.log("skillpack: not implemented yet");
+process.exitCode = await main(process.argv.slice(2));

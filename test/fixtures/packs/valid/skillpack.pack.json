@@ -1,0 +1,5 @@
+{
+  "$schema": "https://skillpack.morovid.com/schemas/v1/pack.json",
+  "name": "tpack",
+  "cli": ">=0.1.0"
+}

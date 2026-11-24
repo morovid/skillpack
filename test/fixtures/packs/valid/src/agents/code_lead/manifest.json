@@ -1,0 +1,6 @@
+{
+  "$schema": "https://skillpack.morovid.com/schemas/v1/agent.json",
+  "description": "Agent code_lead.",
+  "fallback": "a helper subagent",
+  "spawn": ["author"]
+}

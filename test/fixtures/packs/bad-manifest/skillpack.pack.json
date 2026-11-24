@@ -1,0 +1,5 @@
+{
+  "name": "Bad Name",
+  "cli": ">=99.0.0",
+  "extra": true
+}
