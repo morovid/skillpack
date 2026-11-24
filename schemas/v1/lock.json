@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillpack.morovid.com/schemas/v1/lock.json",
+  "title": "skillpack lock file (skillpack-lock.json)",
+  "description": "What skillpack installed: the resolved commit of each pack and a hash of every rendered skill folder. Lives at the project root and is committed. Written by skillpack; don't edit it.",
+  "type": "object",
+  "required": ["cli", "packs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "Schema URL. Its /v<N>/ folder sets the format version; a file without $schema is read as v1.",
+      "type": "string",
+      "pattern": "^https://skillpack\\.morovid\\.com/schemas/v1/lock\\.json$"
+    },
+    "cli": {
+      "description": "Version of skillpack that wrote the file and its hashes.",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["0.1.0"]
+    },
+    "packs": {
+      "description": "Installed packs, keyed by the same normalized source as in skillpack.json.",
+      "type": "object",
+      "propertyNames": { "type": "string", "minLength": 1 },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["version", "commit", "skills"],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "description": "The resolved tag, or null when installed from a branch, a commit or a pack without tags.",
+            "type": ["string", "null"],
+            "examples": ["v1.0.0"]
+          },
+          "commit": {
+            "description": "Full commit SHA the skills were rendered from.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+          },
+          "skills": {
+            "description": "Rendered skill folders, by path relative to the project root, with the content hash of each folder.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^\\.agents/skills/[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^sha256-[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

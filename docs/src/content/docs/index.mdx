@@ -1,0 +1,46 @@
+---
+title: skillpack
+description: Install versioned skill packs with scoped skills and generated agents for OpenCode and Codex.
+template: splash
+hero:
+  tagline: Install versioned skill packs, with scoped skills and generated agents, for OpenCode and Codex.
+  actions:
+    - text: Write a pack
+      link: /pack/folder-structure/
+      icon: right-arrow
+    - text: Install a pack
+      link: /user/config/
+      icon: right-arrow
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+```sh
+npx @morovid/skillpack add morovid/skills@1.0.0
+```
+
+<CardGrid>
+	<Card title="Versioned" icon="seti:git">
+		Install an exact version or a semver range of a pack, resolved from git tags and recorded in a
+		lock file.
+	</Card>
+	<Card title="Scoped" icon="puzzle">
+		Skills and agents are prefixed with the pack's scope, so two packs can both ship `implement`.
+	</Card>
+	<Card title="Agents for each harness" icon="setting">
+		One neutral agent definition becomes an OpenCode agent and a Codex agent, using the models you
+		pick.
+	</Card>
+	<Card title="Works with npx skills" icon="approve-check">
+		Packs ship a plain build, so `npx skills` keeps working on the same repository.
+	</Card>
+</CardGrid>
+
+## Documentation
+
+<CardGrid>
+	<LinkCard title="Pack authors" href="/pack/folder-structure/" description="Folder structure, manifest, skills, agent definitions and placeholders." />
+	<LinkCard title="Users" href="/user/config/" description="Selection config, models file, lock file and the files skillpack installs." />
+	<LinkCard title="Reference" href="/reference/cli/" description="CLI, paths, environment and JSON Schemas." />
+</CardGrid>

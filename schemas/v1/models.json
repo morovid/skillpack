@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillpack.morovid.com/schemas/v1/models.json",
+  "title": "skillpack models file (skillpack.models.json)",
+  "description": "The concrete model used on this machine for each model name a pack's agents ask for. Lives at the project root and is not committed (skillpack lists it in .git/info/exclude).",
+  "type": "object",
+  "required": ["packs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "Schema URL. Its /v<N>/ folder sets the format version; a file without $schema is read as v1.",
+      "type": "string",
+      "pattern": "^https://skillpack\\.morovid\\.com/schemas/v1/models\\.json$"
+    },
+    "packs": {
+      "description": "Model mappings per pack, keyed by the same normalized source as in skillpack.json.",
+      "type": "object",
+      "propertyNames": { "type": "string", "minLength": 1 },
+      "additionalProperties": {
+        "description": "Model mappings for one pack, keyed by the harness-neutral model name the pack's agents ask for.",
+        "type": "object",
+        "propertyNames": { "type": "string", "minLength": 1, "examples": ["sonnet-5.5"] },
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "opencode": {
+              "description": "OpenCode model as provider/model, without a variant.",
+              "type": "string",
+              "pattern": "^[^/\\s#]+/[^\\s#]+$",
+              "examples": ["github-copilot/claude-sonnet-5.5"]
+            },
+            "codex": {
+              "description": "Codex model name.",
+              "type": "string",
+              "pattern": "^[^\\s]+$",
+              "examples": ["gpt-6.2-sol"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

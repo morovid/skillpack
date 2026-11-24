@@ -1,0 +1,23 @@
+{
+  "name": "@morovid/skillpack-docs",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm copy-schemas && astro dev",
+    "start": "pnpm dev",
+    "build": "pnpm copy-schemas && astro build",
+    "preview": "astro preview",
+    "deploy": "pnpm build && wrangler deploy",
+    "copy-schemas": "node -e \"require('node:fs').cpSync('../schemas', 'public/schemas', { recursive: true })\"",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.43.1",
+    "astro": "^7.3.6",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.166.0"
+  }
+}

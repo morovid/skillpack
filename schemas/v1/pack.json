@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillpack.morovid.com/schemas/v1/pack.json",
+  "title": "skillpack pack manifest (skillpack.pack.json)",
+  "description": "Describes a skill pack. Lives at the pack root as skillpack.pack.json.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "Schema URL. Its /v<N>/ folder sets the manifest format version; a manifest without $schema is read as v1.",
+      "type": "string",
+      "pattern": "^https://skillpack\\.morovid\\.com/schemas/v1/pack\\.json$"
+    },
+    "name": {
+      "description": "The pack's scope: prefixes every installed skill and agent (<name>-<skill>). Lowercase letters and digits separated by single - or _, at most 24 characters. Skills and agents are always installed in kebab case (- only).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24,
+      "pattern": "^[a-z0-9]+([-_][a-z0-9]+)*$",
+      "examples": ["morovid"]
+    },
+    "description": {
+      "description": "One-line summary shown by add, list and check.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "cli": {
+      "description": "Semver range of skillpack CLI versions this pack works with. The CLI fails if its version is outside the range.",
+      "type": "string",
+      "minLength": 1,
+      "examples": [">=0.1.0", "^1.2.0"]
+    },
+    "harnesses": {
+      "description": "Harnesses this pack supports. If set, only these are offered, and -a with another harness fails. If left out, all harnesses the CLI supports are offered.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["opencode", "codex"]
+      }
+    }
+  }
+}
