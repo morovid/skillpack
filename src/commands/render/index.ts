@@ -9,7 +9,7 @@ import { replaceFolder } from "../../core/fs/atomic.js";
 import { HARNESSES, HARNESS_INFO, isHarness, sortHarnesses, type Harness } from "../../core/harness.js";
 import { planInstall } from "../../core/install/plan.js";
 import { overlongScopedNames, scopeProblem } from "../../core/names.js";
-import { createStyle, formatAgentWarnings, formatDiagnostics, plural } from "../../core/output.js";
+import { createStyle, formatAgentWarnings, formatBindingsTable, formatDiagnostics, plural } from "../../core/output.js";
 import { listSkillSources, loadAgentDefinitions, loadPackManifest, loadSkillFiles } from "../../core/pack/index.js";
 import { CLI_VERSION } from "../../core/version.js";
 import { UsageError, type Command } from "../types.js";
@@ -103,6 +103,7 @@ export const render: Command = {
       agents: specs,
       harnesses,
       bindings,
+      requestedModelFallback: true,
     });
 
     const outFlag = typeof ctx.values.out === "string" ? resolve(ctx.cwd, ctx.values.out) : undefined;
@@ -151,17 +152,7 @@ export const render: Command = {
 
     if (specs.length > 0) {
       ctx.stdout(`\n${s.bold("Bindings")}\n`);
-      const cell = (a: string, h: Harness): string => {
-        const b = bindingOf(bindings, a, h);
-        return b.kind === "generate" ? `generate (${agentIdFor(scope, a, b)})` : formatBinding(b);
-      };
-      const rows = specs.map((a) => [a.name, ...harnesses.map((h) => cell(a.name, h))]);
-      const head = ["agent", ...harnesses.map((h) => HARNESS_INFO[h].displayName)];
-      const widths = head.map((_, i) => Math.max(...[head, ...rows].map((r) => r[i]!.length)));
-      for (const [i, r] of [head, ...rows].entries()) {
-        const line = `  ${r.map((c, j) => c.padEnd(widths[j]!)).join("  ").trimEnd()}\n`;
-        ctx.stdout(i === 0 ? s.dim(line) : line);
-      }
+      ctx.stdout(formatBindingsTable(specs.map((a) => a.name), harnesses, bindings, scope, s));
     }
 
     if (plan.warnings.length > 0) {

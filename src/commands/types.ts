@@ -1,4 +1,5 @@
 import type { ParseArgsConfig } from "node:util";
+import type { Harness } from "../core/harness.js";
 
 export type ParsedValues = Record<string, string | boolean | (string | boolean)[] | undefined>;
 
@@ -9,6 +10,8 @@ export interface CommandContext {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   color: boolean;
+  env: NodeJS.ProcessEnv;
+  detectHarnesses?: (projectDir: string) => Harness[];
 }
 
 export interface Command {

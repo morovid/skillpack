@@ -1,6 +1,7 @@
 import type { AgentWarning } from "./agents/types.js";
 import type { Diagnostic } from "./diagnostics.js";
-import { HARNESS_INFO } from "./harness.js";
+import { agentIdFor, bindingOf, formatBinding, type Bindings } from "./bindings.js";
+import { HARNESS_INFO, type Harness } from "./harness.js";
 
 export interface Style {
   red(s: string): string;
@@ -74,4 +75,27 @@ export function formatAgentWarnings(warnings: AgentWarning[], s: Style, verbose 
     out = out.replace(`\0${key}\0`, line(w, `${plural(n, "restriction")} not enforced (listed in the agent's instructions)`));
   }
   return out;
+}
+
+/** Agent × harness table of resolved bindings: `generate (id)`, `existing:<id>` or `none`. */
+export function formatBindingsTable(
+  agents: readonly string[],
+  harnesses: readonly Harness[],
+  bindings: Bindings,
+  scope: string,
+  s: Style,
+): string {
+  const cell = (a: string, h: Harness): string => {
+    const b = bindingOf(bindings, a, h);
+    return b.kind === "generate" ? `generate (${agentIdFor(scope, a, b)})` : formatBinding(b);
+  };
+  const rows = agents.map((a) => [a, ...harnesses.map((h) => cell(a, h))]);
+  const head = ["agent", ...harnesses.map((h) => HARNESS_INFO[h].displayName)];
+  const widths = head.map((_, i) => Math.max(...[head, ...rows].map((r) => r[i]!.length)));
+  return [head, ...rows]
+    .map((r, i) => {
+      const line = `  ${r.map((c, j) => c.padEnd(widths[j]!)).join("  ").trimEnd()}\n`;
+      return i === 0 ? s.dim(line) : line;
+    })
+    .join("");
 }

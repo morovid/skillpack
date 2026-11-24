@@ -17,6 +17,12 @@ export interface InstallPlanInput {
   bindings: Bindings;
   /** Concrete model per agent and harness, when known (from the models file). */
   modelFor?: (agent: string, harness: Harness) => string | undefined;
+  /**
+   * Without a concrete model: use the requested model names and effort anyway (render previews),
+   * or leave `model` and effort out so the agent uses the parent session's model (real installs
+   * until model matching exists).
+   */
+  requestedModelFallback?: boolean;
 }
 
 export interface InstallPlan {
@@ -46,10 +52,11 @@ export function planInstall(input: InstallPlanInput): InstallPlan {
     const forHarness = Object.fromEntries(input.agents.map((a) => [a.name, bindingOf(bindings, a.name, harness)]));
     for (const a of input.agents) {
       if (agentIdFor(scope, a.name, forHarness[a.name]!) === null || forHarness[a.name]!.kind !== "generate") continue;
-      const model: AgentModelInput = { requested: a.modelNames };
       const concrete = input.modelFor?.(a.name, harness);
+      const useRequested = concrete !== undefined || input.requestedModelFallback === true;
+      const model: AgentModelInput = { requested: useRequested ? a.modelNames : [] };
       if (concrete !== undefined) model.concrete = concrete;
-      if (a.effort !== undefined) model.effort = a.effort;
+      if (a.effort !== undefined && useRequested) model.effort = a.effort;
       const out = generateAgent(harness, {
         pack: { source: input.pack.source, version: input.pack.version, scope },
         agentName: a.name,

@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { commands } from "./commands/index.js";
 import { UsageError, type CommandContext } from "./commands/types.js";
+import type { Harness } from "./core/harness.js";
 import { colorEnabled } from "./core/output.js";
 import { CLI_VERSION } from "./core/version.js";
 import { commandHelp, rootHelp } from "./help.js";
@@ -10,6 +11,10 @@ export interface Io {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   color: boolean;
+  /** Environment for git and harness detection. Defaults to process.env. */
+  env?: NodeJS.ProcessEnv;
+  /** Test seam: replaces harness detection (R-CLI-4). */
+  detectHarnesses?: (projectDir: string) => Harness[];
 }
 
 export const defaultIo = (): Io => ({
@@ -64,6 +69,8 @@ export async function main(argv: string[], io: Io = defaultIo()): Promise<number
       stdout: io.stdout,
       stderr: io.stderr,
       color: io.color,
+      env: io.env ?? process.env,
+      ...(io.detectHarnesses ? { detectHarnesses: io.detectHarnesses } : {}),
     };
     return await cmd.run(ctx);
   } catch (e) {

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import { applyFsChanges, type FsChange, type TransactionHooks } from "../fs/atomic.js";
 import { diffFiles } from "../fs/diff.js";
 import { readTree, type TreeFile } from "../fs/tree.js";
@@ -141,6 +141,17 @@ const kindOf = (op: ProjectOp): ChangeDescription["kind"] => {
   return (op.label as ChangeDescription["kind"] | undefined) ?? "file";
 };
 
+/** Project-relative display path for absolute paths inside the project (e.g. the worktree-shared exclude file). */
+function displayPath(projectDir: string, path: string): string {
+  if (!isAbsolute(path)) return path;
+  try {
+    const rel = relative(realpathSync(projectDir), path);
+    return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel.split("\\").join("/") : path;
+  } catch {
+    return path;
+  }
+}
+
 /** What `--dry-run` prints (R-SAF-1): create, change or delete per path. No-op operations are left out. */
 export function describeChanges(projectDir: string, ops: ProjectOp[]): ChangeDescription[] {
   const out: ChangeDescription[] = [];
@@ -149,12 +160,12 @@ export function describeChanges(projectDir: string, ops: ProjectOp[]): ChangeDes
     const exists = existsSync(abs);
     const kind = kindOf(op);
     if (op.type === "delete-skill-folder" || op.type === "delete-file") {
-      if (exists) out.push({ action: "delete", path: op.path, kind });
+      if (exists) out.push({ action: "delete", path: displayPath(projectDir, op.path), kind });
     } else if (op.type === "write-skill-folder") {
-      if (!exists) out.push({ action: "create", path: op.path, kind });
-      else if (diffFiles(op.files, safeTree(projectDir, op.path)).length > 0) out.push({ action: "change", path: op.path, kind });
-    } else if (!exists) out.push({ action: "create", path: op.path, kind });
-    else if (!readFileSync(abs).equals(text(op.content))) out.push({ action: "change", path: op.path, kind });
+      if (!exists) out.push({ action: "create", path: displayPath(projectDir, op.path), kind });
+      else if (diffFiles(op.files, safeTree(projectDir, op.path)).length > 0) out.push({ action: "change", path: displayPath(projectDir, op.path), kind });
+    } else if (!exists) out.push({ action: "create", path: displayPath(projectDir, op.path), kind });
+    else if (!readFileSync(abs).equals(text(op.content))) out.push({ action: "change", path: displayPath(projectDir, op.path), kind });
   }
   return out;
 }
