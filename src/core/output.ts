@@ -1,4 +1,6 @@
+import type { AgentWarning } from "./agents/types.js";
 import type { Diagnostic } from "./diagnostics.js";
+import { HARNESS_INFO } from "./harness.js";
 
 export interface Style {
   red(s: string): string;
@@ -44,6 +46,32 @@ export function formatDiagnostics(items: Diagnostic[], s: Style): string {
       out += `  ${line} ${label}  ${d.message}  ${s.dim(d.code)}\n`;
     }
     out += "\n";
+  }
+  return out;
+}
+
+/**
+ * Agent warnings, one line each. Unless `verbose`, the unenforced restrictions of one
+ * agent × harness collapse into a single summary line; other kinds always get their own line.
+ */
+export function formatAgentWarnings(warnings: AgentWarning[], s: Style, verbose = false): string {
+  let out = "";
+  const counts = new Map<string, { w: AgentWarning; n: number }>();
+  const line = (w: AgentWarning, text: string): string =>
+    `  ${s.yellow(w.kind.padEnd(11))} ${w.agent} (${HARNESS_INFO[w.harness].displayName}): ${text}\n`;
+  for (const w of warnings) {
+    if (w.kind === "unenforced" && !verbose) {
+      const key = `${w.agent}\0${w.harness}`;
+      const e = counts.get(key);
+      if (e) e.n++;
+      else {
+        counts.set(key, { w, n: 1 });
+        out += `\0${key}\0`;
+      }
+    } else out += line(w, w.message);
+  }
+  for (const [key, { w, n }] of counts) {
+    out = out.replace(`\0${key}\0`, line(w, `${plural(n, "restriction")} not enforced (listed in the agent's instructions)`));
   }
   return out;
 }

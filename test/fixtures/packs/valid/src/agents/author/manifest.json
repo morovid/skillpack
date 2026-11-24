@@ -1,6 +1,12 @@
 {
   "$schema": "https://skillpack.morovid.com/schemas/v1/agent.json",
-  "description": "Agent author.",
-  "fallback": "a helper subagent",
-  "spawn": ["scout"]
+  "description": "Drafts documents; asks {{agent:scout}} to search.",
+  "fallback": "a document-authoring subagent",
+  "model": { "name": ["sonnet-5.5", "gpt-6.2-sol"], "effort": "high" },
+  "spawn": ["scout"],
+  "capabilities": {
+    "skills": false,
+    "edit": { "allow": ["specs/*"], "deny": ["specs/private/*"] },
+    "shell": { "allow": ["git diff *", "git log *"] }
+  }
 }

@@ -1,6 +1,8 @@
 {
   "$schema": "https://skillpack.morovid.com/schemas/v1/agent.json",
-  "description": "Agent code_lead.",
-  "fallback": "a helper subagent",
-  "spawn": ["author"]
+  "description": "Leads a coding task in {{scope}}.",
+  "fallback": "a lead subagent",
+  "mode": "primary",
+  "spawn": ["author", "scout"],
+  "capabilities": { "edit": true, "web": true, "questions": true, "mcp": ["github"] }
 }

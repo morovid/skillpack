@@ -35,7 +35,8 @@ src/commands/types.ts   Command interface
 src/commands/<name>/    one folder per command: index.ts (definition and output), checks/ etc.
 src/core/               shared logic: names, paths, ajv schemas, pack loaders, frontmatter,
                         placeholders (tokenizer + renderer), render/ (pure skill renderer),
-                        hash, fs/ (tree reader, diff, atomic folder replace), diagnostics, output
+                        hash, bindings, agents/ (OpenCode and Codex generators, headers), install/ (planInstall),
+                        fs/ (tree reader, diff, atomic folder replace), diagnostics, output
 test/                   vitest tests; fixture packs in test/fixtures/packs/
 ```
 
@@ -45,6 +46,7 @@ Currently implemented:
 
 - `skillpack validate [dir] [--strict] [--json]`
 - `skillpack build [dir] [--check] [--json]`: writes the plain build to `skills/` (owned by `build`: stale folders are removed); `--check` exits 1 if it's out of date.
+- `skillpack render [dir] [-a <harness>] [--agent …] [--bind <agent>[.<harness>]=<binding>] [--as <scope>] [--out <dir>] [--json]`: previews an install (shared skills, generated OpenCode and Codex agents, bindings, unenforced-restriction warnings); `--out` writes the tree into an empty directory.
 
 ## Publishing
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://skillpack.morovid.com/schemas/v1/agent.json",
-  "description": "Agent scout.",
+  "description": "Read-only search of the codebase.",
   "fallback": "a helper subagent",
-  "spawn": []
+  "model": "haiku-4"
 }
