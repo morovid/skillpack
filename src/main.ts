@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { commands } from "./commands/index.js";
 import { UsageError, type CommandContext } from "./commands/types.js";
 import type { Harness } from "./core/harness.js";
+import { CancelledError, createClackPrompts, isInteractive, type Prompts } from "./core/prompts/index.js";
 import { colorEnabled } from "./core/output.js";
 import { CLI_VERSION } from "./core/version.js";
 import { commandHelp, rootHelp } from "./help.js";
@@ -15,6 +16,10 @@ export interface Io {
   env?: NodeJS.ProcessEnv;
   /** Test seam: replaces harness detection (R-CLI-4). */
   detectHarnesses?: (projectDir: string) => Harness[];
+  /** Default: stdin and stdout are terminals. */
+  interactive?: boolean;
+  /** Default: terminal prompts (only created when interactive). */
+  prompts?: Prompts;
 }
 
 export const defaultIo = (): Io => ({
@@ -62,6 +67,7 @@ export async function main(argv: string[], io: Io = defaultIo()): Promise<number
       io.stdout(commandHelp(cmd));
       return 0;
     }
+    const interactive = io.interactive ?? isInteractive();
     const ctx: CommandContext = {
       values: parsed.values as CommandContext["values"],
       positionals: parsed.positionals,
@@ -70,10 +76,16 @@ export async function main(argv: string[], io: Io = defaultIo()): Promise<number
       stderr: io.stderr,
       color: io.color,
       env: io.env ?? process.env,
+      interactive,
+      ...(io.prompts ? { prompts: io.prompts } : interactive ? { prompts: createClackPrompts() } : {}),
       ...(io.detectHarnesses ? { detectHarnesses: io.detectHarnesses } : {}),
     };
     return await cmd.run(ctx);
   } catch (e) {
+    if (e instanceof CancelledError) {
+      io.stderr("skillpack: cancelled; nothing was written\n");
+      return 130;
+    }
     const isUsage =
       e instanceof UsageError || (e instanceof Error && (e as NodeJS.ErrnoException).code?.startsWith("ERR_PARSE_ARGS"));
     if (isUsage) {

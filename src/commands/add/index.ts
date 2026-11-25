@@ -1,11 +1,12 @@
 import { resolve } from "node:path";
-import { BindingError, bindingsFromOptions, formatBinding, agentIdFor, bindingOf } from "../../core/bindings.js";
+import { BindingError, bindingsFromOptions, resolveBindings, formatBinding, agentIdFor, bindingOf } from "../../core/bindings.js";
 import { GitError } from "../../core/git/index.js";
 import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
-import { HARNESS_INFO, type Harness } from "../../core/harness.js";
+import { HARNESSES, HARNESS_INFO, type Harness } from "../../core/harness.js";
 import { fetchPack, PackError } from "../../core/install/fetch-pack.js";
 import { planPackInstall } from "../../core/install/pipeline.js";
 import { InstallError, selectHarnesses, selectSkills } from "../../core/install/select.js";
+import { promptBindings } from "../../core/prompts/bindings.js";
 import { overlongScopedNames, scopeProblem } from "../../core/names.js";
 import { createStyle, formatAgentWarnings, formatBindingsTable, formatDiagnostics, plural } from "../../core/output.js";
 import {
@@ -97,17 +98,51 @@ export const add: Command = {
     let harnesses: Harness[];
     let skills: "*" | string[];
     let bindings;
+    let prompted = false;
+    const prompts = ctx.interactive && ctx.values.yes !== true ? ctx.prompts : undefined;
     try {
       const detected = ctx.detectHarnesses
         ? ctx.detectHarnesses(projectDir)
         : detectHarnesses(systemDetectEnv(projectDir, ctx.env));
-      harnesses = selectHarnesses({ flags: strings(ctx.values.harness), supported: pack.harnesses, detected });
-      skills = selectSkills({ flags: strings(ctx.values.skill), available: pack.skills.map((x) => x.name) });
-      bindings = bindingsFromOptions({
-        agents: pack.agents.map((a) => a.name),
-        harnesses,
-        agentOption: typeof ctx.values.agent === "string" ? ctx.values.agent : undefined,
-      });
+      let harnessFlags = strings(ctx.values.harness);
+      let skillFlags = strings(ctx.values.skill);
+      if (prompts && harnessFlags.length === 0) {
+        // R-CLI-4: offer the detected harnesses; if none is detected, all the pack supports.
+        const supported = pack.harnesses ?? HARNESSES;
+        const found = supported.filter((h) => detected.includes(h));
+        const offered = found.length > 0 ? found : [...supported];
+        harnessFlags = await prompts.multiselect<string>({
+          message: "Install for which harnesses?",
+          options: offered.map((h) => ({ value: h, label: HARNESS_INFO[h].displayName })),
+          initial: offered,
+          required: true,
+        });
+        prompted = true;
+      }
+      if (prompts && skillFlags.length === 0 && pack.skills.length > 1) {
+        const picked = await prompts.multiselect<string>({
+          message: "Which skills?",
+          options: pack.skills.map((x) => ({ value: x.name, label: x.name, hint: x.description })),
+          initial: pack.skills.map((x) => x.name),
+          required: true,
+        });
+        skillFlags = picked.length === pack.skills.length ? [] : picked;
+        prompted = true;
+      }
+      harnesses = selectHarnesses({ flags: harnessFlags, supported: pack.harnesses, detected });
+      skills = selectSkills({ flags: skillFlags, available: pack.skills.map((x) => x.name) });
+      const agentOption = typeof ctx.values.agent === "string" ? ctx.values.agent : undefined;
+      if (prompts && agentOption === undefined && pack.agents.length > 0) {
+        bindings = await promptBindings({
+          agents: pack.agents.map((a) => ({ name: a.name, description: a.description, fallback: a.fallback })),
+          harnesses,
+          current: resolveBindings(pack.agents.map((a) => a.name), harnesses),
+          prompts,
+        });
+        prompted = true;
+      } else {
+        bindings = bindingsFromOptions({ agents: pack.agents.map((a) => a.name), harnesses, agentOption });
+      }
     } catch (e) {
       if (e instanceof InstallError) {
         if (e.usage) throw new UsageError(e.message);
@@ -200,7 +235,7 @@ export const add: Command = {
       return 0;
     }
 
-    if (ctx.values.yes !== true) {
+    if (ctx.values.yes !== true && !prompted) {
       out(s.dim("Interactive selection isn't available yet; using the defaults (as with -y).") + "\n\n");
     }
     out(`${s.bold(pack.name)}${pack.description ? ` — ${pack.description}` : ""}\n`);

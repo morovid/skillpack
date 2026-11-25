@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { Prompts } from "../../src/core/prompts/index.js";
 import { main } from "../../src/main.js";
 import { copyValid, createRemotes, write, type TestRemotes } from "./remotes.js";
 
@@ -24,7 +25,7 @@ export function createPackRemotes(): TestRemotes {
 }
 
 export function makeCli(remotes: TestRemotes) {
-  return async (project: string, args: string[], o: { detected?: H[]; env?: Record<string, string> } = {}) => {
+  return async (project: string, args: string[], o: { detected?: H[]; env?: Record<string, string>; prompts?: Prompts; interactive?: boolean } = {}) => {
     let out = "";
     let err = "";
     const code = await main(args, {
@@ -34,6 +35,8 @@ export function makeCli(remotes: TestRemotes) {
       stdout: (t) => (out += t),
       stderr: (t) => (err += t),
       color: false,
+      interactive: o.interactive ?? o.prompts !== undefined,
+      ...(o.prompts ? { prompts: o.prompts } : {}),
     });
     return { code, out, err };
   };

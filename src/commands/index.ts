@@ -1,6 +1,7 @@
 import type { Command } from "./types.js";
 import { add } from "./add/index.js";
 import { build } from "./build/index.js";
+import { configure } from "./configure/index.js";
 import { install } from "./install/index.js";
 import { list } from "./list/index.js";
 import { remove } from "./remove/index.js";
@@ -9,6 +10,6 @@ import { sync } from "./sync/index.js";
 import { validate } from "./validate/index.js";
 
 // Adding a command = add a folder under src/commands/ and one line here.
-const all: Command[] = [add, build, install, list, remove, render, sync, validate];
+const all: Command[] = [add, build, configure, install, list, remove, render, sync, validate];
 
 export const commands: ReadonlyMap<string, Command> = new Map(all.map((c) => [c.name, c]));

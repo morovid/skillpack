@@ -1,5 +1,6 @@
 import type { ParseArgsConfig } from "node:util";
 import type { Harness } from "../core/harness.js";
+import type { Prompts } from "../core/prompts/index.js";
 
 export type ParsedValues = Record<string, string | boolean | (string | boolean)[] | undefined>;
 
@@ -12,6 +13,9 @@ export interface CommandContext {
   color: boolean;
   env: NodeJS.ProcessEnv;
   detectHarnesses?: (projectDir: string) => Harness[];
+  /** True when prompts may run: both stdin and stdout are terminals. */
+  interactive: boolean;
+  prompts?: Prompts;
 }
 
 export interface Command {

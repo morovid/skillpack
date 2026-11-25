@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import type { Prompts } from "../src/core/prompts/index.js";
 import { main } from "../src/main.js";
+import { CANCEL, scriptedPrompts } from "./helpers/prompts.js";
 import { copyValid, createRemotes, initProject, write, type TestRemotes } from "./helpers/remotes.js";
 
 let remotes: TestRemotes;
@@ -31,7 +33,7 @@ beforeAll(() => {
   remotes.add("acme/nomanifest", [{ apply: (w) => write(w, "skills/one/SKILL.md", skillMd("one")) }]);
 });
 
-async function cli(project: string, args: string[], detected: ("opencode" | "codex")[] = []) {
+async function cli(project: string, args: string[], detected: ("opencode" | "codex")[] = [], prompts?: Prompts) {
   let out = "";
   let err = "";
   const code = await main(args, {
@@ -41,6 +43,8 @@ async function cli(project: string, args: string[], detected: ("opencode" | "cod
     stdout: (t) => (out += t),
     stderr: (t) => (err += t),
     color: false,
+    interactive: prompts !== undefined,
+    ...(prompts ? { prompts } : {}),
   });
   return { code, out, err };
 }
@@ -329,5 +333,69 @@ describe("add", () => {
     expect(r.code).toBe(0);
     expect(r.out).toContain("Not a git repository");
     expect(r.out).toContain("/.opencode/agents/tpack-author.md");
+  });
+
+  it("interactive: scripted prompts choose harnesses, skills and bindings, and they are saved as chosen", async () => {
+    const project = initProject();
+    const { prompts, asked } = scriptedPrompts([
+      ["codex"], // harnesses
+      ["review"], // skills
+      "generate", // author in Codex (one harness: no shortcut question)
+      "none", // code_lead
+      "existing:explorer", // scout
+    ]);
+    const r = await cli(project, ["add", "acme/skills"], [], prompts);
+    expect(r.err).toBe("");
+    expect(r.code).toBe(0);
+    expect(asked.map((a) => a.message)).toEqual(["Install for which harnesses?", "Which skills?", "author in Codex", "code_lead in Codex", "scout in Codex"]);
+    expect(asked[0]!.options!.map((o) => o.value)).toEqual(["opencode", "codex"]); // none detected: offer all supported
+    expect(asked[1]!.options![0]).toMatchObject({ value: "plan_code", hint: "Skill plan_code for tests." });
+    const entry = readJson(project, "skillpack.json").packs["https://github.com/acme/skills"];
+    expect(entry.harnesses).toEqual(["codex"]);
+    expect(entry.skills).toEqual(["review"]);
+    expect(entry.agents).toEqual({
+      author: { codex: "generate" },
+      code_lead: { codex: "none" },
+      scout: { codex: "existing:explorer" },
+    });
+    expect(existsSync(join(project, ".codex/agents/tpack-author.toml"))).toBe(true);
+    expect(existsSync(join(project, ".codex/agents/tpack-code-lead.toml"))).toBe(false);
+    expect(readFileSync(join(project, ".agents/skills/tpack-review/SKILL.md"), "utf8")).toContain("`explorer`");
+    expect(r.out).not.toContain("Interactive selection isn't available yet");
+  });
+
+  it("interactive: offers only detected harnesses; -a, -s and --agent skip their questions", async () => {
+    const project = initProject();
+    const first = scriptedPrompts([["opencode"], "all-skills-is-implicit"]);
+    first.prompts.multiselect = async (o) => {
+      first.asked.push({ kind: "multiselect", message: o.message, options: o.options, initial: o.initial });
+      return (o.message.startsWith("Install") ? ["opencode"] : o.options.map((x) => x.value)) as never;
+    };
+    const r = await cli(project, ["add", "acme/skills", "--agent", "none"], ["opencode"], first.prompts);
+    expect(r.code).toBe(0);
+    expect(first.asked[0]!.options!.map((o) => o.value)).toEqual(["opencode"]);
+    expect(first.asked.map((a) => a.message)).toEqual(["Install for which harnesses?", "Which skills?"]); // no binding questions with --agent
+    expect(readJson(project, "skillpack.json").packs["https://github.com/acme/skills"].skills).toBe("*"); // all selected = "*"
+
+    const p2 = initProject();
+    const { prompts, asked } = scriptedPrompts(["generate", "generate", "generate", "generate", "generate", "generate"]);
+    const r2 = await cli(p2, ["add", "acme/skills", "-a", "opencode", "-s", "review"], [], prompts);
+    expect(r2.code).toBe(0);
+    expect(asked.map((a) => a.message)).toEqual(["author in OpenCode", "code_lead in OpenCode", "scout in OpenCode"]);
+  });
+
+  it("interactive: cancelling writes nothing; -y and non-TTY keep the defaults", async () => {
+    const project = initProject();
+    const { prompts } = scriptedPrompts([CANCEL]);
+    const r = await cli(project, ["add", "acme/skills"], [], prompts);
+    expect(r.code).toBe(130);
+    expect(existsSync(join(project, "skillpack.json"))).toBe(false);
+    const { prompts: unused, asked } = scriptedPrompts([]);
+    const y = await cli(project, ["add", "acme/skills", "-a", "opencode", "-y"], [], unused);
+    expect(y.code).toBe(0);
+    expect(asked).toEqual([]);
+    const plain = initProject();
+    const n = await cli(plain, ["add", "acme/skills", "-a", "opencode"]);
+    expect(n.out).toContain("Interactive selection isn't available yet");
   });
 });
