@@ -92,6 +92,28 @@ export function resolveVersion(requested: string | undefined, remote: Remote): R
   throw new VersionError(`No version, tag, branch or commit matches "${req}". ${describeAvailable(remote)}`);
 }
 
+const SHA_LIKE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Does the locked entry still satisfy the requested version in skillpack.json (R-VER-6)? Decided
+ * without network access. A range needs a locked semver tag inside it (npm prerelease rules); an
+ * exact tag needs the same tag; a commit needs a commit starting with it; a branch is satisfied by
+ * any locked entry that isn't a tag (install never moves branches; `update` does). The lock file
+ * doesn't record the branch name, so changing one branch to another isn't noticed.
+ */
+export function lockSatisfies(requested: string, locked: { version: string | null; commit: string }): boolean {
+  const req = requested.trim();
+  if (!req) return false;
+  const tag = locked.version;
+  if (semver.validRange(req)) {
+    if (tag !== null && semver.valid(tag) && semver.satisfies(tag, req)) return true;
+    return SHA_LIKE.test(req) && locked.commit.toLowerCase().startsWith(req.toLowerCase());
+  }
+  if (tag !== null) return tag === req;
+  if (SHA_LIKE.test(req)) return locked.commit.toLowerCase().startsWith(req.toLowerCase());
+  return true;
+}
+
 export type RewriteResult = { version: string; reason?: undefined } | { version: null; reason: string };
 
 /** Rewrites a saved `version` for `upgrade` (R-VER-7a), keeping its form. `newVersion` may be a tag name or a version. */

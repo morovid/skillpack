@@ -4,6 +4,7 @@ import { applyFsChanges, type FsChange, type TransactionHooks } from "../fs/atom
 import { diffFiles } from "../fs/diff.js";
 import { readTree, type TreeFile } from "../fs/tree.js";
 import { hashFiles } from "../hash.js";
+import type { Harness } from "../harness.js";
 import type { Lock } from "./lock.js";
 import { classifyAgentFile, classifySkillFolder, findOwnedAgentFiles } from "./ownership.js";
 
@@ -22,6 +23,19 @@ export interface DesiredPack {
   skills: Map<string, TreeFile[]>;
   /** ".opencode/agents/<id>.md" -> content. Only agents bound to generate. */
   agents: Map<string, string | Buffer>;
+  /** Delete locked skill folders that are no longer desired even when edited (pack removal: git can recover them). */
+  deleteEditedSkills?: boolean;
+  /** Harnesses whose agent files are managed; stale files of other harnesses are left alone. Default: all. */
+  agentHarnesses?: readonly Harness[];
+}
+
+export interface SkillAction {
+  path: string;
+  /** added: new folder; restored: locked but missing or edited; updated: content changed; removed: deleted. */
+  action: "added" | "restored" | "updated" | "removed";
+  pack: string;
+  /** For removals: the folder had local edits. */
+  edited?: boolean;
 }
 
 export interface BlockedItem {
@@ -42,6 +56,7 @@ export interface PlanOptions {
 export interface ChangePlan {
   ops: ProjectOp[];
   blocked: BlockedItem[];
+  skillActions: SkillAction[];
   /** Hash of every desired skill folder, per pack: what goes into the lock file. */
   skillHashes: Record<string, Record<string, string>>;
 }
@@ -61,6 +76,7 @@ export function planChanges(
   const { projectDir, lock } = input;
   const ops: ProjectOp[] = [];
   const blocked: BlockedItem[] = [];
+  const skillActions: SkillAction[] = [];
   const skillHashes: Record<string, Record<string, string>> = {};
 
   for (const pack of input.desired) {
@@ -74,7 +90,11 @@ export function planChanges(
       skillHashes[source]![path] = hashFiles(files);
       const { state, owner } = classifySkillFolder(projectDir, path, lock);
       const same = state !== "absent" && diffFiles(files, safeTree(projectDir, path)).length === 0;
-      const write = (): void => void ops.push({ type: "write-skill-folder", path, files });
+      const write = (): void => {
+        ops.push({ type: "write-skill-folder", path, files });
+        const action = state === "absent" ? (owner === source ? "restored" : "added") : state === "owned-edited" ? "restored" : "updated";
+        skillActions.push({ path, action, pack: source });
+      };
       if (state === "absent") write();
       else if (owner !== null && owner !== source) {
         if (opts.force) write();
@@ -94,8 +114,11 @@ export function planChanges(
     for (const path of Object.keys(lock?.packs[source]?.skills ?? {}).sort()) {
       if (pack.skills.has(path)) continue;
       const { state } = classifySkillFolder(projectDir, path, lock);
-      if (state === "owned-clean" || (state === "owned-edited" && opts.force)) ops.push({ type: "delete-skill-folder", path });
-      else if (state === "owned-edited") block(path, "skill", "delete", "edited");
+      const edited = state === "owned-edited";
+      if (state === "owned-clean" || (edited && (opts.force || pack.deleteEditedSkills))) {
+        ops.push({ type: "delete-skill-folder", path });
+        skillActions.push({ path, action: "removed", pack: source, ...(edited ? { edited: true } : {}) });
+      } else if (edited) block(path, "skill", "delete", "edited");
     }
 
     for (const [path, content] of [...pack.agents].sort(([a], [b]) => (a < b ? -1 : 1))) {
@@ -108,7 +131,7 @@ export function planChanges(
       else block(path, "agent", "write", state === "foreign" ? "foreign" : "edited");
     }
 
-    for (const path of findOwnedAgentFiles(projectDir, source)) {
+    for (const path of findOwnedAgentFiles(projectDir, source, pack.agentHarnesses)) {
       if (pack.agents.has(path)) continue;
       const state = classifyAgentFile(projectDir, path, source);
       if (state === "owned-clean" || opts.force) ops.push({ type: "delete-file", path, label: "agent" });
@@ -117,7 +140,8 @@ export function planChanges(
   }
 
   ops.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return { ops, blocked, skillHashes };
+  skillActions.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { ops, blocked, skillActions, skillHashes };
 }
 
 function safeTree(projectDir: string, path: string): TreeFile[] {
@@ -169,6 +193,17 @@ export function describeChanges(projectDir: string, ops: ProjectOp[]): ChangeDes
   }
   return out;
 }
+
+/** True when applying the operation would change nothing. */
+export function isNoop(projectDir: string, op: ProjectOp): boolean {
+  const abs = resolve(projectDir, op.path);
+  const exists = existsSync(abs);
+  if (op.type === "delete-skill-folder" || op.type === "delete-file") return !exists;
+  if (op.type === "write-skill-folder") return exists && diffFiles(op.files, safeTree(projectDir, op.path)).length === 0;
+  return exists && readFileSync(abs).equals(text(op.content));
+}
+
+export const pruneNoops = (projectDir: string, ops: ProjectOp[]): ProjectOp[] => ops.filter((op) => !isNoop(projectDir, op));
 
 export function formatChangeDescriptions(list: ChangeDescription[]): string {
   const sign = { create: "+", change: "~", delete: "-" } as const;

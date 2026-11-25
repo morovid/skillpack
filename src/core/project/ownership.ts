@@ -2,7 +2,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseAgentHeader, verifyAgentHash } from "../agents/header.js";
 import { hashFolder } from "../hash.js";
-import { HARNESSES } from "../harness.js";
+import { HARNESSES, type Harness } from "../harness.js";
 import { lockOwner, type Lock } from "./lock.js";
 import { AGENT_DIRS, AGENT_EXT } from "./paths.js";
 
@@ -50,9 +50,9 @@ export function classifyAgentFile(projectDir: string, agentPath: string, packSou
 }
 
 /** Generated agent files (by header) that name this pack source, as project-relative paths. */
-export function findOwnedAgentFiles(projectDir: string, packSource: string): string[] {
+export function findOwnedAgentFiles(projectDir: string, packSource: string, harnesses: readonly Harness[] = HARNESSES): string[] {
   const out: string[] = [];
-  for (const h of HARNESSES) {
+  for (const h of harnesses) {
     const dir = join(projectDir, AGENT_DIRS[h]);
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir).sort()) {
@@ -66,4 +66,23 @@ export function findOwnedAgentFiles(projectDir: string, packSource: string): str
     }
   }
   return out;
+}
+
+/** Pack sources named by the headers of generated agent files (used to find agents of packs that are gone). */
+export function listAgentSources(projectDir: string, harnesses: readonly Harness[] = HARNESSES): string[] {
+  const out = new Set<string>();
+  for (const h of harnesses) {
+    const dir = join(projectDir, AGENT_DIRS[h]);
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith(AGENT_EXT[h])) continue;
+      try {
+        const src = parseAgentHeader(readFileSync(join(dir, name), "utf8"))?.source;
+        if (src) out.add(src);
+      } catch {
+        // unreadable: not ours
+      }
+    }
+  }
+  return [...out].sort();
 }

@@ -13,7 +13,10 @@ export interface InstallPlanInput {
   pack: { source: string; version: string };
   skills: SkillSourceFiles[];
   agents: AgentSpec[];
+  /** Harnesses the pack is installed for (skills are phrased for all of them). */
   harnesses: readonly Harness[];
+  /** Harnesses to generate agent files for; default all of `harnesses` (install skips undetected ones). */
+  agentHarnesses?: readonly Harness[];
   bindings: Bindings;
   /** Concrete model per agent and harness, when known (from the models file). */
   modelFor?: (agent: string, harness: Harness) => string | undefined;
@@ -48,7 +51,7 @@ export function planInstall(input: InstallPlanInput): InstallPlan {
   );
   const warnings: AgentWarning[] = [];
 
-  for (const harness of harnesses) {
+  for (const harness of input.agentHarnesses ?? harnesses) {
     const forHarness = Object.fromEntries(input.agents.map((a) => [a.name, bindingOf(bindings, a.name, harness)]));
     for (const a of input.agents) {
       if (agentIdFor(scope, a.name, forHarness[a.name]!) === null || forHarness[a.name]!.kind !== "generate") continue;
