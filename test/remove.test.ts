@@ -280,6 +280,44 @@ describe("remove: resolving what you typed", () => {
     expect((await cli(initProject(), ["remove", "x"])).code).toBe(1);
   });
 
+  it("a pack that is only in the lock file points at install, and nothing is written", async () => {
+    const project = initProject();
+    await cli(project, ADD);
+    await cli(project, ["add", "acme/other", "-a", "opencode", "-y"]);
+    const cfg = readJson(project, "skillpack.json");
+    delete cfg.packs[OTHER];
+    writeFileSync(join(project, "skillpack.json"), JSON.stringify(cfg));
+    const before = Object.fromEntries(["skillpack.json", "skillpack-lock.json", ".git/info/exclude"].map((f) => [f, readFileSync(join(project, f), "utf8")]));
+    const files = snapshot(project);
+    const tail = "is in skillpack-lock.json but not in skillpack.json; run `skillpack install` to clean it up";
+    for (const ref of ["acme/other", OTHER, "other"]) {
+      const r = await cli(project, ["remove", ref]);
+      expect(r.code, ref).toBe(1);
+      expect(r.err, ref).toContain(`${OTHER} ${tail}`);
+      expect(r.err).not.toContain("nothing named");
+    }
+    const unrelated = await cli(project, ["remove", "nope"]);
+    expect(unrelated.code).toBe(1);
+    expect(unrelated.err).toContain('nothing named "nope"');
+    expect(snapshot(project)).toEqual(files);
+    for (const [f, text] of Object.entries(before)) expect(readFileSync(join(project, f), "utf8")).toBe(text);
+  });
+
+  it("several lock-only packs matching one ref are listed", async () => {
+    const project = initProject();
+    await cli(project, ADD);
+    await cli(project, ["add", "acme/other", "-a", "opencode", "-y", "--as", "tpack2"]);
+    const lock = readJson(project, "skillpack-lock.json");
+    lock.packs["https://github.com/acme/third"] = { ref: null, commit: "a".repeat(40), skills: { ".agents/skills/tpack2-extra": "sha256-" + "b".repeat(64) } };
+    writeFileSync(join(project, "skillpack-lock.json"), JSON.stringify(lock));
+    writeFileSync(join(project, "skillpack.json"), JSON.stringify({ packs: {} }));
+    const r = await cli(project, ["remove", "tpack2"]);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('"tpack2" matches several packs that are in skillpack-lock.json but not in skillpack.json: ');
+    expect(r.err).toContain(OTHER);
+    expect(r.err).toContain("https://github.com/acme/third");
+  });
+
   it("removes several things in one transaction, and a pack subsumes its skills", async () => {
     const project = initProject();
     await cli(project, ADD);

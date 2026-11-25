@@ -171,3 +171,12 @@ export function describePack(
   }
   return out;
 }
+
+/** Packs that are in the lock file but not in skillpack.json and that `ref` names (by source, or by a scope derived from their locked skill folders). */
+export function findLockOnlyPacks(projectDir: string, config: SelectionConfig, lock: Lock | null, ref: string): string[] {
+  return Object.keys(lock?.packs ?? {}).filter((key) => {
+    if (key in config.packs) return false;
+    const info = deriveScope(projectDir, config, lock, key);
+    return matchesPackRef(ref, key, "") || info.candidates.some((sc) => matchesPackRef(ref, key, sc));
+  });
+}

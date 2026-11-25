@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { HARNESSES, type Harness } from "../harness.js";
 import { scopedName, toKebab } from "../names.js";
 import {
-  classifySkillFolder, deriveScope, readModels, removePackModels, resolvePackRef, serializeModels, skillFolderPath,
+  classifySkillFolder, deriveScope, findLockOnlyPacks, readModels, removePackModels, resolvePackRef, serializeModels, skillFolderPath,
   type BlockedItem, type Lock, type PackConfig, type ProjectOp, type SelectionConfig,
 } from "../project/index.js";
 import { MODELS_FILE } from "../project/paths.js";
@@ -73,6 +73,14 @@ export function resolveRemoveTarget(ref: string, ctx: Ctx): RemoveTarget {
       for (const a of Object.keys(ctx.config.packs[key]!.agents)) {
         if (a === name || toKebab(a) === nm || info.candidates.some((c) => `${c}-${toKebab(a)}` === nm)) found.push({ kind: "agent", key, agent: a });
       }
+    }
+  }
+  if (found.length === 0 && !kind) {
+    const orphans = findLockOnlyPacks(ctx.projectDir, ctx.config, ctx.lock, rest);
+    const tail = "run `skillpack install` to clean it up";
+    if (orphans.length === 1) throw new RemoveError(`${orphans[0]} is in skillpack-lock.json but not in skillpack.json; ${tail}`);
+    if (orphans.length > 1) {
+      throw new RemoveError(`"${ref}" matches several packs that are in skillpack-lock.json but not in skillpack.json: ${orphans.join(", ")}; ${tail}`);
     }
   }
   if (found.length === 0) throw new RemoveError(`nothing named "${ref}" is installed (not a pack, skill or agent of the configured packs)`);
