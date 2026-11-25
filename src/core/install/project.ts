@@ -65,6 +65,17 @@ export interface ProjectInstallInput {
   /** Blocked agent files fail the plan (add) instead of being kept with a warning (install). */
   blockOnAgents?: boolean;
   env?: NodeJS.ProcessEnv;
+  /** Delete locked skill folders of removed packs even when edited (install). `remove` keeps edited ones unless forced. Default true. */
+  deleteEditedOnRemove?: boolean;
+  /** Drop the exclude entries of the agent files this plan deletes (`remove` only, R-SAF-7). */
+  pruneExclude?: boolean;
+  /** More exclude entries to drop (e.g. a models file that no longer exists). */
+  excludeRemove?: string[];
+  /** Edits the new lock after it is cloned from `lock` (for changes the planner doesn't know about). */
+  lockEdit?: (lock: Lock) => void;
+  /** Extra operations, planned by the caller, and the items it already found blocked. */
+  extraOps?: ProjectOp[];
+  extraBlocked?: BlockedItem[];
 }
 
 export interface RemovedPackDetail {
@@ -116,6 +127,7 @@ function render(projectDir: string, lock: Lock | null, t: PackTarget): { desired
     scope,
     pack: { source: t.key, version: refTag(t.resolved.ref) ?? t.resolved.commit.slice(0, 7) },
     skills: selected.map((s) => ({ name: s.name, files: s.files })),
+    allSkillNames: pack.skills.map((s) => s.name),
     agents: pack.agents,
     harnesses,
     agentHarnesses: t.agentHarnesses,
@@ -214,7 +226,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
   const { projectDir, lock } = input;
   const rendered = input.targets.map((t) => render(projectDir, lock, t));
   const removeKeys = input.removeKeys ?? [];
-  const removedDesired: DesiredPack[] = removeKeys.map((source) => ({ source, skills: new Map(), agents: new Map(), deleteEditedSkills: true }));
+  const removedDesired: DesiredPack[] = removeKeys.map((source) => ({ source, skills: new Map(), agents: new Map(), deleteEditedSkills: input.deleteEditedOnRemove ?? true }));
   const desired = [...rendered.map((r) => r.desired), ...removedDesired];
 
   const plan: ProjectInstallPlan = {
@@ -238,7 +250,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     { ...(input.force !== undefined ? { force: input.force } : {}), ...(input.restoreEdited !== undefined ? { restoreEdited: input.restoreEdited } : {}) },
   );
   plan.skillActions = changes.skillActions;
-  plan.blocked = changes.blocked.filter((b) => b.kind === "skill" || input.blockOnAgents);
+  plan.blocked = [...changes.blocked.filter((b) => b.kind === "skill" || input.blockOnAgents), ...(input.extraBlocked ?? [])];
   plan.keptAgents = changes.blocked.filter((b) => b.kind === "agent" && !input.blockOnAgents);
   plan.removed = removeKeys.map((key) => ({
     key,
@@ -248,6 +260,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
   if (plan.blocked.length > 0) return plan;
 
   const newLock = plan.newLock;
+  input.lockEdit?.(newLock);
   for (const key of removeKeys) delete newLock.packs[key];
   for (const t of input.targets) {
     newLock.packs[t.key] = { ref: t.resolved.ref, commit: t.resolved.commit, skills: changes.skillHashes[t.key] ?? {} };
@@ -255,7 +268,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
   plan.lockChanged = serializeLock(newLock) !== serializeLock(lock ?? { cli: newLock.cli, packs: {} });
   if (plan.lockChanged || lock === null) newLock.cli = input.cliVersion;
 
-  const ops: ProjectOp[] = [...changes.ops];
+  const ops: ProjectOp[] = [...changes.ops, ...(input.extraOps ?? [])];
   if (input.writeConfig) {
     const config: SelectionConfig = {
       ...input.config,
@@ -264,8 +277,12 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     ops.push({ type: "write-json", path: CONFIG_FILE, content: serializeConfig(config), label: "config" });
   }
   if (plan.lockChanged || lock === null) ops.push({ type: "write-json", path: LOCK_FILE, content: serializeLock(newLock), label: "lock" });
-  if (plan.excludePaths.length > 0) {
-    const ex = await planExcludeUpdate(projectDir, { add: plan.excludePaths }, input.env);
+  const drop = [
+    ...(input.pruneExclude ? changes.ops.filter((o) => o.type === "delete-file" && o.label === "agent").map((o) => o.path) : []),
+    ...(input.excludeRemove ?? []),
+  ];
+  if (plan.excludePaths.length > 0 || drop.length > 0) {
+    const ex = await planExcludeUpdate(projectDir, { add: plan.excludePaths, remove: drop }, input.env);
     if (ex !== null && "outsideRepo" in ex) plan.outsideRepo = true;
     else if (ex !== null) ops.push(ex);
   }
@@ -273,7 +290,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
 
   const touched = new Set(plan.ops.map((o) => o.path));
   const folders = new Set<string>();
-  for (const key of new Set([...input.targets.map((t) => t.key), ...removeKeys])) {
+  for (const key of new Set([...Object.keys(lock?.packs ?? {}), ...Object.keys(newLock.packs)])) {
     const was = lock?.packs[key]?.skills ?? {};
     const now = newLock.packs[key]?.skills ?? {};
     for (const p of new Set([...Object.keys(was), ...Object.keys(now)])) if (was[p] !== now[p]) folders.add(p);

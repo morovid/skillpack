@@ -12,6 +12,8 @@ export interface InstallPlanInput {
   scope: string;
   pack: { source: string; version: string };
   skills: SkillSourceFiles[];
+  /** Every skill of the pack, for link rewriting: links to a sibling skill are rewritten even when it isn't installed, so a skill renders the same whatever is selected. Default: `skills`. */
+  allSkillNames?: readonly string[];
   agents: AgentSpec[];
   /** Harnesses the pack is installed for (skills are phrased for all of them). */
   harnesses: readonly Harness[];
@@ -40,7 +42,7 @@ export function planInstall(input: InstallPlanInput): InstallPlan {
   const agents = new Map(input.agents.map((a) => [a.name, a]));
   const ctx = createInstallContext({
     scope,
-    skillNames: input.skills.map((s) => s.name),
+    skillNames: input.allSkillNames ?? input.skills.map((s) => s.name),
     agents,
     harnesses,
     bindings,

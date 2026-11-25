@@ -7,3 +7,4 @@ export * from "./lock.js";
 export * from "./models.js";
 export * from "./ownership.js";
 export * from "./paths.js";
+export * from "./pack-ref.js";
