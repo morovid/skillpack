@@ -77,11 +77,11 @@ describe("selection config", () => {
 describe("lock file", () => {
   it("serializes deterministically with sorted keys and round-trips", () => {
     const a = emptyLock("0.1.0");
-    a.packs["https://b"] = { version: null, commit: SHA, skills: { ".agents/skills/z": H, ".agents/skills/a": H } };
-    a.packs["https://a"] = { version: "v1.0.0", commit: SHA, skills: {} };
+    a.packs["https://b"] = { ref: null, commit: SHA, skills: { ".agents/skills/z": H, ".agents/skills/a": H } };
+    a.packs["https://a"] = { ref: "refs/tags/v1.0.0", commit: SHA, skills: {} };
     const b = emptyLock("0.1.0");
-    b.packs["https://a"] = { skills: {}, commit: SHA, version: "v1.0.0" };
-    b.packs["https://b"] = { skills: { ".agents/skills/a": H, ".agents/skills/z": H }, commit: SHA, version: null };
+    b.packs["https://a"] = { skills: {}, commit: SHA, ref: "refs/tags/v1.0.0" };
+    b.packs["https://b"] = { skills: { ".agents/skills/a": H, ".agents/skills/z": H }, commit: SHA, ref: null };
     expect(serializeLock(a)).toBe(serializeLock(b));
     const out = JSON.parse(serializeLock(a));
     expect(Object.keys(out)).toEqual(["$schema", "cli", "packs"]);
@@ -90,14 +90,25 @@ describe("lock file", () => {
     const dir = tmp();
     writeFileSync(join(dir, "skillpack-lock.json"), serializeLock(a));
     const r = readLock(dir);
-    expect(r.status === "ok" && r.value.packs["https://b"]!.version).toBeNull();
+    expect(r.status === "ok" && r.value.packs["https://b"]!.ref).toBeNull();
   });
   it("rejects bad hashes and unknown keys", () => {
     const dir = tmp();
-    writeFileSync(join(dir, "skillpack-lock.json"), JSON.stringify({ cli: "1", packs: { x: { version: null, commit: "nope", skills: {} } } }));
+    writeFileSync(join(dir, "skillpack-lock.json"), JSON.stringify({ cli: "1", packs: { x: { ref: null, commit: "nope", skills: {} } } }));
     expect(readLock(dir).status).toBe("invalid");
     writeFileSync(join(dir, "skillpack-lock.json"), JSON.stringify({ cli: "1", packs: {}, extra: 1 }));
     expect(readLock(dir).status).toBe("invalid");
+    const entry = (e: Record<string, unknown>) => JSON.stringify({ cli: "1", packs: { x: { commit: SHA, skills: {}, ...e } } });
+    for (const bad of [{}, { ref: "main" }, { ref: "refs/remotes/x" }, { ref: "refs/tags/" }, { ref: null, version: "v1" }, { ref: null, branch: "main" }]) {
+      writeFileSync(join(dir, "skillpack-lock.json"), entry(bad));
+      expect(readLock(dir).status, JSON.stringify(bad)).toBe("invalid");
+    }
+    for (const good of [{ ref: null }, { ref: "refs/tags/v1.0.0" }, { ref: "refs/heads/feature/x" }]) {
+      writeFileSync(join(dir, "skillpack-lock.json"), entry(good));
+      expect(readLock(dir).status, JSON.stringify(good)).toBe("ok");
+    }
+    writeFileSync(join(dir, "skillpack-lock.json"), JSON.stringify({ packs: {} }));
+    expect(readLock(dir).status).toBe("invalid"); // cli is required
     expect(readLock(tmp()).status).toBe("missing");
   });
 });

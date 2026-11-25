@@ -7,6 +7,7 @@ import {
   emptyLock, findOwnedAgentFiles, lockOwner, packBindings, planChanges, planExcludeUpdate, pruneNoops, serializeConfig, serializeLock,
   type BlockedItem, type DesiredPack, type Lock, type PackConfig, type ProjectOp, type SelectionConfig, type SkillAction,
 } from "../project/index.js";
+import { refTag } from "../project/lock.js";
 import { CONFIG_FILE, INSTALLED_SKILLS_DIR, LOCK_FILE } from "../project/paths.js";
 import type { LoadedPack } from "./fetch-pack.js";
 import { findNpxSkillsDuplicates } from "./npx-skills.js";
@@ -17,7 +18,7 @@ export interface PackTarget {
   key: string;
   pack: LoadedPack;
   /** What goes into the lock file. */
-  resolved: { tag: string | null; branch: string | null; commit: string };
+  resolved: { ref: string | null; commit: string };
   /** The pack's entry in skillpack.json (bindings explicit). */
   packConfig: PackConfig;
   /** Effective scope: `packConfig.scope` or the manifest name. */
@@ -113,7 +114,7 @@ function render(projectDir: string, lock: Lock | null, t: PackTarget): { desired
   const bindings = packBindings(packConfig, pack.agents.map((a) => a.name), harnesses);
   const rendered = planInstall({
     scope,
-    pack: { source: t.key, version: t.resolved.tag ?? t.resolved.commit.slice(0, 7) },
+    pack: { source: t.key, version: refTag(t.resolved.ref) ?? t.resolved.commit.slice(0, 7) },
     skills: selected.map((s) => ({ name: s.name, files: s.files })),
     agents: pack.agents,
     harnesses,
@@ -249,7 +250,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
   const newLock = plan.newLock;
   for (const key of removeKeys) delete newLock.packs[key];
   for (const t of input.targets) {
-    newLock.packs[t.key] = { version: t.resolved.tag, branch: t.resolved.branch, commit: t.resolved.commit, skills: changes.skillHashes[t.key] ?? {} };
+    newLock.packs[t.key] = { ref: t.resolved.ref, commit: t.resolved.commit, skills: changes.skillHashes[t.key] ?? {} };
   }
   plan.lockChanged = serializeLock(newLock) !== serializeLock(lock ?? { cli: newLock.cli, packs: {} });
   if (plan.lockChanged || lock === null) newLock.cli = input.cliVersion;

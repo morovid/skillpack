@@ -11,8 +11,7 @@ description: The committed record of the exact commit of each pack and the hash 
   "cli": "0.1.0",
   "packs": {
     "https://github.com/morovid/skills": {
-      "version": "v1.0.0",
-      "branch": null,
+      "ref": "refs/tags/v1.0.0",
       "commit": "386c5d6e0b7a4f9d2c1e8b3a5f6d7c8e9a0b1c2d",
       "skills": {
         ".agents/skills/morovid-plan-code": "sha256-3f2a…",
@@ -26,9 +25,8 @@ description: The committed record of the exact commit of each pack and the hash 
 | Key | Description |
 |---|---|
 | `cli` | The `skillpack` version that wrote the file. A newer version may render slightly different files; `doctor` then tells you to run `sync` instead of reporting your skills as edited. |
-| `packs.<source>` | One entry per pack, with the same key as in `skillpack.json`. |
-| `version` | The tag the requested version resolved to, or `null` for a branch, a commit or a pack without tags (a branch is recorded in `branch`). |
-| `branch` | The branch the pack was resolved from, or `null`. Set when the requested version is a branch, or when a pack without tags follows its default branch. `install` uses it to notice that `version` in `skillpack.json` now names another branch. |
+| `packs.<source>` | One entry per pack, with the same key as in `skillpack.json`. `ref`, `commit` and `skills` are all required. |
+| `ref` | The full git ref the commit was resolved from: `refs/tags/<tag>` or `refs/heads/<branch>`, or `null` when the pack is pinned to a commit. A pack without tags follows its default branch, so it's recorded as `refs/heads/<branch>`. `install` compares it with `version` in `skillpack.json`, so changing the version to another branch (or a range the locked tag no longer satisfies) resolves the pack again. |
 | `commit` | The exact commit the skills were rendered from. |
 | `skills` | Every skill folder written, relative to the project root, with a hash of its contents. |
 
@@ -46,8 +44,8 @@ That's all. The requested version, harnesses, skills, scope and bindings are in 
 
 | Situation | What `install` does |
 |---|---|
-| The locked version still matches the pack's `version` | Installs the locked commit |
-| A pack is new in `skillpack.json`, or its `version` changed and the locked version no longer matches | Resolves the version again and updates the lock file |
+| The locked ref still matches the pack's `version` (a tag inside the range, the same tag or branch name, or a commit that starts with it) | Installs the locked commit |
+| A pack is new in `skillpack.json`, or its `version` changed and the locked ref no longer matches (for example another branch) | Resolves the version again and updates the lock file |
 | A pack is in the lock file but no longer in `skillpack.json` | Removes its skills and agents |
 | A listed skill folder is missing or differs from what the locked commit renders | Rewrites it and lists it. Skills are committed, so you can get edits back from git. |
 | Agents | Generates them for the harnesses found on this machine; skips the others with a note |
@@ -78,4 +76,4 @@ As in pnpm, `--frozen-lockfile` is the default when the `CI` environment variabl
 
 ## Merge conflicts
 
-The lock file is generated from `skillpack.json` and the pack commits. If it conflicts in a merge, resolve `skillpack.json` first, take either side of the lock file, and run `skillpack install`. It resolves again any pack whose locked version no longer matches.
+The lock file is generated from `skillpack.json` and the pack commits. If it conflicts in a merge, resolve `skillpack.json` first, take either side of the lock file, and run `skillpack install`. It resolves again any pack whose locked ref no longer matches.

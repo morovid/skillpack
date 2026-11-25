@@ -3,7 +3,7 @@ import { BindingError, bindingsFromOptions, formatBinding, agentIdFor, bindingOf
 import { GitError } from "../../core/git/index.js";
 import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
 import { HARNESS_INFO, type Harness } from "../../core/harness.js";
-import { fetchPack, PackError, resolvedBranch } from "../../core/install/fetch-pack.js";
+import { fetchPack, PackError } from "../../core/install/fetch-pack.js";
 import { planPackInstall } from "../../core/install/pipeline.js";
 import { InstallError, selectHarnesses, selectSkills } from "../../core/install/select.js";
 import { overlongScopedNames, scopeProblem } from "../../core/names.js";
@@ -13,7 +13,7 @@ import {
   type Lock, type PackConfig, type SelectionConfig,
 } from "../../core/project/index.js";
 import { SourceError, parseSourceSpec } from "../../core/source/parse.js";
-import { VersionError } from "../../core/source/versions.js";
+import { resolvedRef, VersionError } from "../../core/source/versions.js";
 import { CLI_VERSION } from "../../core/version.js";
 import { UsageError, type Command } from "../types.js";
 
@@ -137,7 +137,7 @@ export const add: Command = {
       cliVersion: CLI_VERSION,
       key: spec.key,
       pack,
-      resolved: { tag: resolved.tag, branch: resolvedBranch(resolved), commit: resolved.commit },
+      resolved: { ref: resolvedRef(resolved), commit: resolved.commit },
       packConfig,
       scope,
       config,
@@ -177,7 +177,7 @@ export const add: Command = {
             ok: true,
             dryRun,
             source: spec.key,
-            version: resolved.tag,
+            ref: resolvedRef(resolved),
             requested: resolved.saved,
             commit: resolved.commit,
             scope,

@@ -9,6 +9,7 @@ import { HARNESSES, type Harness } from "../harness.js";
 import { MANIFEST_FILE } from "../paths.js";
 import { listSkillSources, loadAgentDefinitions, loadPackManifest } from "../pack/index.js";
 import type { SourceSpec } from "../source/parse.js";
+import { refBranch, refTag } from "../project/lock.js";
 import { resolveVersion, type ResolvedVersion } from "../source/versions.js";
 import { validatePack } from "../../commands/validate/validate-pack.js";
 
@@ -82,12 +83,13 @@ export interface FetchedPack {
  */
 export async function fetchPack(
   spec: SourceSpec,
-  opts: { requested?: string | undefined; locked?: { commit: string; tag: string | null; branch?: string | null }; env?: NodeJS.ProcessEnv; cliVersion: string },
+  opts: { requested?: string | undefined; locked?: { commit: string; ref: string | null }; env?: NodeJS.ProcessEnv; cliVersion: string },
 ): Promise<FetchedPack> {
   const git = opts.env ? { env: opts.env } : {};
   let resolved: ResolvedVersion;
   if (opts.locked) {
-    resolved = { kind: opts.locked.tag ? "tag" : opts.locked.branch ? "branch" : "commit", tag: opts.locked.tag, commit: opts.locked.commit, saved: opts.requested ?? opts.locked.commit };
+    const tag = refTag(opts.locked.ref);
+    resolved = { kind: tag ? "tag" : refBranch(opts.locked.ref) ? "branch" : "commit", tag, commit: opts.locked.commit, saved: opts.requested ?? opts.locked.commit };
   } else {
     resolved = resolveVersion(opts.requested ?? spec.version, await lsRemote(spec.cloneUrl, git));
   }
@@ -96,6 +98,3 @@ export async function fetchPack(
     return { resolved: { ...resolved, commit }, pack: loadPack(dir, opts.cliVersion) };
   });
 }
-
-/** The branch to record in the lock file: set when the version resolved from a branch (`saved` is its name). */
-export const resolvedBranch = (r: ResolvedVersion): string | null => (r.kind === "branch" ? r.saved : null);

@@ -13,7 +13,7 @@ export interface PackInstallInput {
   /** Normalized source key. */
   key: string;
   pack: LoadedPack;
-  resolved: { tag: string | null; branch: string | null; commit: string };
+  resolved: { ref: string | null; commit: string };
   /** The complete entry to save in skillpack.json (every binding explicit). */
   packConfig: PackConfig;
   /** Effective scope: `packConfig.scope` or the manifest name. */

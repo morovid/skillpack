@@ -81,7 +81,8 @@ describe("add", () => {
     const lock = readJson(project, "skillpack-lock.json");
     const entry = lock.packs["https://github.com/acme/skills"];
     expect(lock.cli).toBe("0.1.0");
-    expect(entry.version).toBe("v1.1.0");
+    expect(entry.ref).toBe("refs/tags/v1.1.0");
+    expect(Object.keys(entry)).toEqual(["ref", "commit", "skills"]);
     expect(entry.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(Object.keys(entry.skills)).toEqual([".agents/skills/tpack-plan-code", ".agents/skills/tpack-review"]);
     expect(Object.values(entry.skills)[0]).toMatch(/^sha256-[0-9a-f]{64}$/);
@@ -112,7 +113,6 @@ describe("add", () => {
     expect(r.out).toContain("Commit: skillpack.json, skillpack-lock.json, .agents/skills/tpack-*");
     expect(r.out).toContain("v1.1.0 (^1.1.0)");
     expect(r.out).toContain("Commit: skillpack.json, skillpack-lock.json, .agents/skills/tpack-*");
-    expect(entry.branch).toBeNull();
     const again = await cli(project, ["add", "acme/skills", "-a", "opencode,codex", "-y"]);
     expect(again.out).not.toContain("Commit:"); // nothing committed changed
   });
@@ -128,16 +128,16 @@ describe("add", () => {
     const project = initProject();
     expect((await cli(project, ["add", "acme/skills@1.0.0", "-a", "codex", "-y"])).code).toBe(0);
     expect(readJson(project, "skillpack.json").packs["https://github.com/acme/skills"].version).toBe("1.0.0");
-    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/skills"].version).toBe("v1.0.0");
+    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/skills"].ref).toBe("refs/tags/v1.0.0");
     expect(readFileSync(join(project, ".agents/skills/tpack-plan-code/SKILL.md"), "utf8")).not.toContain("v1.1 change");
     expect(existsSync(join(project, ".opencode"))).toBe(false);
   });
 
-  it("branch versions lock a commit and no tag", async () => {
+  it("branch versions lock the branch ref", async () => {
     const project = initProject();
     expect((await cli(project, ["add", "acme/skills@main", "-a", "codex", "-y"])).code).toBe(0);
     expect(readJson(project, "skillpack.json").packs["https://github.com/acme/skills"].version).toBe("main");
-    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/skills"].version).toBeNull();
+    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/skills"].ref).toBe("refs/heads/main");
   });
 
   it("--dry-run writes nothing but describes everything", async () => {
@@ -316,7 +316,7 @@ describe("add", () => {
     const project = initProject();
     const r = await cli(project, ["add", "acme/skills", "-a", "opencode", "-y", "--json", "--dry-run"]);
     const j = JSON.parse(r.out);
-    expect(j).toMatchObject({ ok: true, dryRun: true, source: "https://github.com/acme/skills", version: "v1.1.0", requested: "^1.1.0", scope: "tpack" });
+    expect(j).toMatchObject({ ok: true, dryRun: true, source: "https://github.com/acme/skills", ref: "refs/tags/v1.1.0", requested: "^1.1.0", scope: "tpack" });
     expect(j.changes.some((c: { path: string }) => c.path === "skillpack.json")).toBe(true);
     expect(existsSync(join(project, "skillpack.json"))).toBe(false);
   });

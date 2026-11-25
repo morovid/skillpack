@@ -1,10 +1,10 @@
 import { GitError } from "../git/index.js";
 import type { Harness } from "../harness.js";
 import { overlongScopedNames } from "../names.js";
-import { listAgentSources, type Lock, type PackConfig, type SelectionConfig } from "../project/index.js";
+import { formatLockedRef, listAgentSources, refBranch, type Lock, type PackConfig, type SelectionConfig } from "../project/index.js";
 import { parseSourceSpec } from "../source/parse.js";
-import { lockSatisfies, VersionError } from "../source/versions.js";
-import { fetchPack, resolvedBranch } from "./fetch-pack.js";
+import { lockSatisfies, resolvedRef, VersionError } from "../source/versions.js";
+import { fetchPack } from "./fetch-pack.js";
 import { InstallError } from "./select.js";
 import type { PackTarget, ProjectInstallPlan } from "./project.js";
 
@@ -41,7 +41,7 @@ export interface PackStatus {
   name: string;
   /** locked: installed at the locked commit; re-resolved: the lock no longer satisfied `version`; resolved: not in the lock yet. */
   kind: "locked" | "re-resolved" | "resolved";
-  tag: string | null;
+  ref: string | null;
   commit: string;
   requested: string;
   /** Configured harnesses without a detected install: no agents generated for them. */
@@ -72,18 +72,18 @@ export async function prepareTargets(o: {
       requested: cfg.version,
       cliVersion: o.cliVersion,
       ...(o.env ? { env: o.env } : {}),
-      ...(state === "locked" && locked ? { locked: { commit: locked.commit, tag: locked.version, branch: locked.branch ?? null } } : {}),
+      ...(state === "locked" && locked ? { locked: { commit: locked.commit, ref: locked.ref } } : {}),
     });
     const { pack, resolved } = fetched;
     const scope = cfg.scope ?? pack.name;
     checkPackConfig(key, cfg, pack.skills.map((s) => s.name), pack.agents.map((a) => a.name), pack.harnesses, scope);
     const agentHarnesses = o.noAgents ? [] : cfg.harnesses.filter((h) => o.detected.includes(h));
-    targets.push({ key, pack, resolved: { tag: resolved.tag, branch: resolvedBranch(resolved), commit: resolved.commit }, packConfig: cfg, scope, agentHarnesses });
+    targets.push({ key, pack, resolved: { ref: resolvedRef(resolved), commit: resolved.commit }, packConfig: cfg, scope, agentHarnesses });
     statuses.push({
       key,
       name: pack.name,
       kind: state === "locked" ? "locked" : state === "unsatisfied" ? "re-resolved" : "resolved",
-      tag: resolved.tag,
+      ref: resolvedRef(resolved),
       commit: resolved.commit,
       requested: cfg.version,
       skippedHarnesses: o.noAgents ? [] : cfg.harnesses.filter((h) => !o.detected.includes(h)),
@@ -117,7 +117,8 @@ export function lockfileProblems(config: SelectionConfig, lock: Lock | null): st
     else if (state === "unsatisfied") {
       const l = lock!.packs[key]!;
       const req = config.packs[key]!.version;
-      out.push(l.branch ? `${key}: locked branch ${l.branch} doesn't match "${req}"` : `${key}: locked ${l.version ?? l.commit.slice(0, 7)} doesn't satisfy "${req}"`);
+      const branch = refBranch(l.ref);
+      out.push(branch ? `${key}: locked branch ${branch} doesn't match "${req}"` : `${key}: locked ${formatLockedRef(l.ref, l.commit)} doesn't satisfy "${req}"`);
     }
   }
   for (const key of removedKeys(config, lock)) out.push(`${key} is in the lock file but not in skillpack.json`);

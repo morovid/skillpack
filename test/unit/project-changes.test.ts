@@ -27,7 +27,7 @@ function agentFile(source: string, id = "acme-a", body = "body\n") {
 
 function lockWith(skills: Record<string, TreeFile[]>, source = SRC): Lock {
   const l = emptyLock("0.1.0");
-  l.packs[source] = { version: "v1", commit: SHA, skills: Object.fromEntries(Object.entries(skills).map(([k, v]) => [k, hashFiles(v)])) };
+  l.packs[source] = { ref: "refs/tags/v1", commit: SHA, skills: Object.fromEntries(Object.entries(skills).map(([k, v]) => [k, hashFiles(v)])) };
   return l;
 }
 

@@ -129,7 +129,7 @@ describe("install", () => {
     const r = await cli(project, ["install"]);
     expect(r.code).toBe(0);
     expect(r.out).toContain("↻ tpack v2.0.0 (re-resolved from ^2.0.0)");
-    expect(readJson(project, "skillpack-lock.json").packs[KEY].version).toBe("v2.0.0");
+    expect(readJson(project, "skillpack-lock.json").packs[KEY].ref).toBe("refs/tags/v2.0.0");
     expect(readFileSync(join(project, ".agents/skills/tpack-plan-code/SKILL.md"), "utf8")).toContain("v2 change");
     expect(r.out).toMatch(/updated\s+\.agents\/skills\/tpack-plan-code/);
     expect(readJson(project, "skillpack.json").packs[KEY].version).toBe("^2.0.0"); // never rewritten
@@ -144,7 +144,7 @@ describe("install", () => {
     writeJson(project, "skillpack.json", cfg);
     const r = await cli(project, ["install"]);
     expect(r.out).toContain("✔ tpack v1.0.0 (locked)");
-    expect(readJson(project, "skillpack-lock.json").packs[KEY].version).toBe("v1.0.0");
+    expect(readJson(project, "skillpack-lock.json").packs[KEY].ref).toBe("refs/tags/v1.0.0");
     expect(readFileSync(join(project, ".agents/skills/tpack-plan-code/SKILL.md"), "utf8")).not.toContain("v1.1 change");
   });
 
@@ -156,7 +156,7 @@ describe("install", () => {
     const r = await cli(project, ["install"]);
     expect(r.code).toBe(0);
     expect(r.out).toContain("not in the lock file");
-    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/other"].version).toBe("v1.0.0");
+    expect(readJson(project, "skillpack-lock.json").packs["https://github.com/acme/other"].ref).toBe("refs/tags/v1.0.0");
     expect(existsSync(join(project, ".agents/skills/other-review/SKILL.md"))).toBe(true);
   });
 
@@ -243,7 +243,7 @@ describe("install", () => {
     const project = await clonedProject();
     const j = JSON.parse((await cli(project, ["install", "--json", "--dry-run"])).out);
     expect(j).toMatchObject({ ok: true, dryRun: true });
-    expect(j.packs[0]).toMatchObject({ source: KEY, status: "locked", version: "v1.1.0" });
+    expect(j.packs[0]).toMatchObject({ source: KEY, status: "locked", ref: "refs/tags/v1.1.0" });
     expect(j.packs[0].agentFiles).toContain(".opencode/agents/tpack-author.md");
   });
 
@@ -360,8 +360,8 @@ describe("branches in the lock", () => {
     const project = initProject();
     expect((await cli(project, BR)).code).toBe(0);
     const entry = () => readJson(project, "skillpack-lock.json").packs[BKEY];
-    expect(entry()).toMatchObject({ version: null, branch: "main" });
-    expect(Object.keys(entry())).toEqual(["version", "branch", "commit", "skills"]);
+    expect(entry().ref).toBe("refs/heads/main");
+    expect(Object.keys(entry())).toEqual(["ref", "commit", "skills"]);
     const mainCommit = entry().commit;
     expect(readFileSync(join(project, ".agents/skills/br-one/SKILL.md"), "utf8")).toContain("main content");
     git(project, "add", "-A");
@@ -382,7 +382,7 @@ describe("branches in the lock", () => {
     expect(r.code).toBe(0);
     expect(r.out).toContain("(re-resolved from dev)");
     expect(r.out).toContain("Commit: skillpack-lock.json, .agents/skills/br-one");
-    expect(entry()).toMatchObject({ version: null, branch: "dev" });
+    expect(entry().ref).toBe("refs/heads/dev");
     expect(entry().commit).not.toBe(mainCommit);
     expect(readFileSync(join(project, ".agents/skills/br-one/SKILL.md"), "utf8")).toContain("dev content");
 
@@ -391,24 +391,23 @@ describe("branches in the lock", () => {
     expect((await cli(project, ["install", "--frozen-lockfile"])).code).toBe(0);
   });
 
-  it("a lock written before `branch` existed is resolved again once", async () => {
+  it("a commit pin is recorded with a null ref and stays locked", async () => {
     const project = initProject();
     await cli(project, BR);
-    const lock = readJson(project, "skillpack-lock.json");
-    delete lock.packs[BKEY].branch;
-    writeJson(project, "skillpack-lock.json", lock);
-    expect((await cli(project, ["install", "--frozen-lockfile"])).code).toBe(1);
-    const r = await cli(project, ["install"]);
-    expect(r.out).toContain("(re-resolved from main)");
-    expect(readJson(project, "skillpack-lock.json").packs[BKEY].branch).toBe("main");
+    const commit = readJson(project, "skillpack-lock.json").packs[BKEY].commit;
+    const pin = initProject();
+    expect((await cli(pin, ["add", `acme/branches@${commit.slice(0, 10)}`, "-a", "opencode", "-y"])).code).toBe(0);
+    expect(readJson(pin, "skillpack-lock.json").packs[BKEY]).toMatchObject({ ref: null, commit });
+    const r = await cli(pin, ["install"]);
+    expect(r.out).toContain(`✔ br ${commit.slice(0, 7)} (locked)`);
   });
 
   it("a pack without tags records its default branch", async () => {
     const project = initProject();
     await cli(project, ["add", "acme/branches", "-a", "opencode", "-y"]);
-    expect(readJson(project, "skillpack-lock.json").packs[BKEY].branch).toBe("main");
+    expect(readJson(project, "skillpack-lock.json").packs[BKEY].ref).toBe("refs/heads/main");
     const tagged = initProject();
     await cli(tagged, ["add", "acme/skills@^1.1.0", "-a", "opencode", "-y"]);
-    expect(readJson(tagged, "skillpack-lock.json").packs[KEY]).toMatchObject({ version: "v1.1.0", branch: null });
+    expect(readJson(tagged, "skillpack-lock.json").packs[KEY]).toMatchObject({ ref: "refs/tags/v1.1.0" });
   });
 });

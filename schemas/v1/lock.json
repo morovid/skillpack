@@ -24,18 +24,14 @@
       "propertyNames": { "type": "string", "minLength": 1 },
       "additionalProperties": {
         "type": "object",
-        "required": ["version", "commit", "skills"],
+        "required": ["ref", "commit", "skills"],
         "additionalProperties": false,
         "properties": {
-          "version": {
-            "description": "The resolved tag, or null when installed from a branch, a commit or a pack without tags.",
+          "ref": {
+            "description": "The full git ref the commit was resolved from: refs/tags/<tag> or refs/heads/<branch>. null when the pack is pinned to a commit.",
             "type": ["string", "null"],
-            "examples": ["v1.0.0"]
-          },
-          "branch": {
-            "description": "The branch the pack was resolved from, or null when it wasn't resolved from a branch. skillpack always writes it; lock files from before it existed still validate.",
-            "type": ["string", "null"],
-            "examples": ["main"]
+            "pattern": "^refs/(tags|heads)/.+$",
+            "examples": ["refs/tags/v1.0.0", "refs/heads/main"]
           },
           "commit": {
             "description": "Full commit SHA the skills were rendered from.",

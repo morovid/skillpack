@@ -9,7 +9,7 @@ import { planProjectInstall } from "../../core/install/project.js";
 import { InstallError } from "../../core/install/select.js";
 import { createStyle, formatAgentWarnings, formatDiagnostics, plural } from "../../core/output.js";
 import {
-  applyChanges, describeChanges, formatChangeDescriptions, readConfig, readLock, type BlockedItem,
+  applyChanges, describeChanges, formatChangeDescriptions, formatLockedRef, readConfig, readLock, type BlockedItem,
 } from "../../core/project/index.js";
 import { SourceError } from "../../core/source/parse.js";
 import { VersionError } from "../../core/source/versions.js";
@@ -142,7 +142,7 @@ export const install: Command = {
                 source: st.key,
                 name: st.name,
                 status: st.kind,
-                version: st.tag,
+                ref: st.ref,
                 commit: st.commit,
                 requested: st.requested,
                 skippedHarnesses: st.skippedHarnesses,
@@ -168,7 +168,7 @@ export const install: Command = {
       const touched = new Set(plan.ops.map((op) => op.path));
       const changedAgents = plan.targets.map((t) => t.agentPaths.filter((p) => touched.has(p)));
       for (const [i, st] of statuses.entries()) {
-        const v = st.tag ?? `${st.requested}@${st.commit.slice(0, 7)}`;
+        const v = formatLockedRef(st.ref, st.commit);
         const how = st.kind === "locked" ? "(locked)" : st.kind === "re-resolved" ? `(re-resolved from ${st.requested})` : `(resolved from ${st.requested}; not in the lock file)`;
         out(`${st.kind === "locked" ? s.green(SIGN.locked) : s.yellow(SIGN[st.kind])} ${st.name} ${v} ${how}\n`);
         const t = plan.targets[i]!;

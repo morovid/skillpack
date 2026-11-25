@@ -11,6 +11,11 @@ export interface ResolvedVersion {
   saved: string;
 }
 
+/** The git ref to record in the lock file: `refs/tags/<tag>`, `refs/heads/<branch>`, or null for a commit pin. */
+export function resolvedRef(r: ResolvedVersion): string | null {
+  return r.kind === "tag" && r.tag ? `refs/tags/${r.tag}` : r.kind === "branch" ? `refs/heads/${r.saved}` : null;
+}
+
 export interface SemverTag {
   tag: string;
   version: string;
@@ -96,31 +101,24 @@ const SHA_LIKE = /^[0-9a-f]{7,40}$/i;
 
 /**
  * Does the locked entry still satisfy the requested version in skillpack.json (R-VER-6)? Decided
- * without network access, so the request is classified like `resolveVersion` can't (it has no
- * remote): a semver version or range first, then everything else by what the lock recorded.
+ * without network access from the locked `ref` and `commit`:
  *
- * - semver version or range: the locked tag is a semver tag inside it (npm prerelease rules);
- * - a commit (7-40 hex digits): the locked commit starts with it;
- * - a branch name: `locked.branch` equals it;
- * - a tag name: `locked.version` equals it.
- *
- * A lock entry without `branch` (written before the field existed) never satisfies a branch
- * request, so `install` resolves it again once and records the branch.
+ * - semver version or range: the ref is `refs/tags/<t>` where `t` is a semver tag inside it
+ *   (npm prerelease rules; `v` prefix optional);
+ * - 7-40 hex digits: the locked commit starts with it;
+ * - anything else: the ref is `refs/tags/<requested>` or `refs/heads/<requested>`, so a tag and a
+ *   branch can both be requested by name, and switching branch (`main` to `dev`) is noticed.
  */
-export function lockSatisfies(
-  requested: string,
-  locked: { version: string | null; branch?: string | null; commit: string },
-): boolean {
+export function lockSatisfies(requested: string, locked: { ref: string | null; commit: string }): boolean {
   const req = requested.trim();
   if (!req) return false;
-  const tag = locked.version;
   const sha = SHA_LIKE.test(req) && locked.commit.toLowerCase().startsWith(req.toLowerCase());
   if (semver.validRange(req)) {
+    const tag = locked.ref?.startsWith("refs/tags/") ? locked.ref.slice("refs/tags/".length) : null;
     return (tag !== null && !!semver.valid(tag) && semver.satisfies(tag, req)) || sha;
   }
   if (sha) return true;
-  if (locked.branch != null) return locked.branch === req;
-  return tag !== null && tag === req;
+  return locked.ref === `refs/tags/${req}` || locked.ref === `refs/heads/${req}`;
 }
 
 export type RewriteResult = { version: string; reason?: undefined } | { version: null; reason: string };
