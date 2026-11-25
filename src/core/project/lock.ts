@@ -5,6 +5,8 @@ import { readValidated, sortedEntries, toJsonText, type FileState } from "./io.j
 export interface LockedPack {
   /** The resolved tag, or null for a branch, commit or pack without tags. */
   version: string | null;
+  /** The branch the pack was resolved from (a request for a branch, or the default branch of a pack without tags); null otherwise. Missing in lock files written before it existed. */
+  branch?: string | null;
   commit: string;
   /** ".agents/skills/<folder>" -> "sha256-<hex>" */
   skills: Record<string, string>;
@@ -26,7 +28,7 @@ export function readLock(projectDir: string): FileState<Lock> {
 export function serializeLock(lock: Lock): string {
   const packs: Record<string, unknown> = {};
   for (const [key, p] of sortedEntries(lock.packs)) {
-    packs[key] = { version: p.version, commit: p.commit, skills: Object.fromEntries(sortedEntries(p.skills)) };
+    packs[key] = { version: p.version, branch: p.branch ?? null, commit: p.commit, skills: Object.fromEntries(sortedEntries(p.skills)) };
   }
   return toJsonText({ $schema: `${SCHEMA_BASE}/lock.json`, cli: lock.cli, packs });
 }

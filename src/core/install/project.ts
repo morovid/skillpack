@@ -17,7 +17,7 @@ export interface PackTarget {
   key: string;
   pack: LoadedPack;
   /** What goes into the lock file. */
-  resolved: { tag: string | null; commit: string };
+  resolved: { tag: string | null; branch: string | null; commit: string };
   /** The pack's entry in skillpack.json (bindings explicit). */
   packConfig: PackConfig;
   /** Effective scope: `packConfig.scope` or the manifest name. */
@@ -91,6 +91,12 @@ export interface ProjectInstallPlan {
   /** Generated agent paths, to keep out of git. */
   excludePaths: string[];
   outsideRepo: boolean;
+  /**
+   * Committed files that really change: skillpack.json and the lock file when they are written,
+   * and the skill folders whose locked content changes (added, updated or removed; a restore
+   * brings a folder back to what is already committed, so it isn't listed).
+   */
+  commitPaths: string[];
 }
 
 const MODEL_NOTE = "model matching isn't available yet; generated agents use the parent session's model";
@@ -222,6 +228,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     lockChanged: false,
     excludePaths: [...new Set(rendered.flatMap((r) => r.detail.agentPaths))].sort(),
     outsideRepo: false,
+    commitPaths: [],
   };
   if (plan.conflicts.length > 0) return plan;
 
@@ -242,7 +249,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
   const newLock = plan.newLock;
   for (const key of removeKeys) delete newLock.packs[key];
   for (const t of input.targets) {
-    newLock.packs[t.key] = { version: t.resolved.tag, commit: t.resolved.commit, skills: changes.skillHashes[t.key] ?? {} };
+    newLock.packs[t.key] = { version: t.resolved.tag, branch: t.resolved.branch, commit: t.resolved.commit, skills: changes.skillHashes[t.key] ?? {} };
   }
   plan.lockChanged = serializeLock(newLock) !== serializeLock(lock ?? { cli: newLock.cli, packs: {} });
   if (plan.lockChanged || lock === null) newLock.cli = input.cliVersion;
@@ -262,5 +269,14 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     else if (ex !== null) ops.push(ex);
   }
   plan.ops = pruneNoops(projectDir, ops);
+
+  const touched = new Set(plan.ops.map((o) => o.path));
+  const folders = new Set<string>();
+  for (const key of new Set([...input.targets.map((t) => t.key), ...removeKeys])) {
+    const was = lock?.packs[key]?.skills ?? {};
+    const now = newLock.packs[key]?.skills ?? {};
+    for (const p of new Set([...Object.keys(was), ...Object.keys(now)])) if (was[p] !== now[p]) folders.add(p);
+  }
+  plan.commitPaths = [...[CONFIG_FILE, LOCK_FILE].filter((p) => touched.has(p)), ...[...folders].sort()];
   return plan;
 }

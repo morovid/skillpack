@@ -111,6 +111,10 @@ describe("add", () => {
     expect(r.out).toMatch(/unenforced\s+author \(Codex\): \d+ restrictions not enforced/);
     expect(r.out).toContain("Commit: skillpack.json, skillpack-lock.json, .agents/skills/tpack-*");
     expect(r.out).toContain("v1.1.0 (^1.1.0)");
+    expect(r.out).toContain("Commit: skillpack.json, skillpack-lock.json, .agents/skills/tpack-*");
+    expect(entry.branch).toBeNull();
+    const again = await cli(project, ["add", "acme/skills", "-a", "opencode,codex", "-y"]);
+    expect(again.out).not.toContain("Commit:"); // nothing committed changed
   });
 
   it("prints a note instead of prompting without -y", async () => {

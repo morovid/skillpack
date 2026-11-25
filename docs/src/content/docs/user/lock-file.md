@@ -12,6 +12,7 @@ description: The committed record of the exact commit of each pack and the hash 
   "packs": {
     "https://github.com/morovid/skills": {
       "version": "v1.0.0",
+      "branch": null,
       "commit": "386c5d6e0b7a4f9d2c1e8b3a5f6d7c8e9a0b1c2d",
       "skills": {
         ".agents/skills/morovid-plan-code": "sha256-3f2a…",
@@ -26,7 +27,8 @@ description: The committed record of the exact commit of each pack and the hash 
 |---|---|
 | `cli` | The `skillpack` version that wrote the file. A newer version may render slightly different files; `doctor` then tells you to run `sync` instead of reporting your skills as edited. |
 | `packs.<source>` | One entry per pack, with the same key as in `skillpack.json`. |
-| `version` | The tag the requested version resolved to, or `null` for a branch, a commit or a pack without tags. |
+| `version` | The tag the requested version resolved to, or `null` for a branch, a commit or a pack without tags (a branch is recorded in `branch`). |
+| `branch` | The branch the pack was resolved from, or `null`. Set when the requested version is a branch, or when a pack without tags follows its default branch. `install` uses it to notice that `version` in `skillpack.json` now names another branch. |
 | `commit` | The exact commit the skills were rendered from. |
 | `skills` | Every skill folder written, relative to the project root, with a hash of its contents. |
 

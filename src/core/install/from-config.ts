@@ -4,7 +4,7 @@ import { overlongScopedNames } from "../names.js";
 import { listAgentSources, type Lock, type PackConfig, type SelectionConfig } from "../project/index.js";
 import { parseSourceSpec } from "../source/parse.js";
 import { lockSatisfies, VersionError } from "../source/versions.js";
-import { fetchPack } from "./fetch-pack.js";
+import { fetchPack, resolvedBranch } from "./fetch-pack.js";
 import { InstallError } from "./select.js";
 import type { PackTarget, ProjectInstallPlan } from "./project.js";
 
@@ -72,13 +72,13 @@ export async function prepareTargets(o: {
       requested: cfg.version,
       cliVersion: o.cliVersion,
       ...(o.env ? { env: o.env } : {}),
-      ...(state === "locked" && locked ? { locked: { commit: locked.commit, tag: locked.version } } : {}),
+      ...(state === "locked" && locked ? { locked: { commit: locked.commit, tag: locked.version, branch: locked.branch ?? null } } : {}),
     });
     const { pack, resolved } = fetched;
     const scope = cfg.scope ?? pack.name;
     checkPackConfig(key, cfg, pack.skills.map((s) => s.name), pack.agents.map((a) => a.name), pack.harnesses, scope);
     const agentHarnesses = o.noAgents ? [] : cfg.harnesses.filter((h) => o.detected.includes(h));
-    targets.push({ key, pack, resolved: { tag: resolved.tag, commit: resolved.commit }, packConfig: cfg, scope, agentHarnesses });
+    targets.push({ key, pack, resolved: { tag: resolved.tag, branch: resolvedBranch(resolved), commit: resolved.commit }, packConfig: cfg, scope, agentHarnesses });
     statuses.push({
       key,
       name: pack.name,
@@ -115,7 +115,9 @@ export function lockfileProblems(config: SelectionConfig, lock: Lock | null): st
   for (const [key, state] of lockStates(config, lock)) {
     if (state === "missing") out.push(`${key} is in skillpack.json but not in the lock file`);
     else if (state === "unsatisfied") {
-      out.push(`${key}: locked ${lock!.packs[key]!.version ?? lock!.packs[key]!.commit.slice(0, 7)} doesn't satisfy "${config.packs[key]!.version}"`);
+      const l = lock!.packs[key]!;
+      const req = config.packs[key]!.version;
+      out.push(l.branch ? `${key}: locked branch ${l.branch} doesn't match "${req}"` : `${key}: locked ${l.version ?? l.commit.slice(0, 7)} doesn't satisfy "${req}"`);
     }
   }
   for (const key of removedKeys(config, lock)) out.push(`${key} is in the lock file but not in skillpack.json`);

@@ -96,22 +96,31 @@ const SHA_LIKE = /^[0-9a-f]{7,40}$/i;
 
 /**
  * Does the locked entry still satisfy the requested version in skillpack.json (R-VER-6)? Decided
- * without network access. A range needs a locked semver tag inside it (npm prerelease rules); an
- * exact tag needs the same tag; a commit needs a commit starting with it; a branch is satisfied by
- * any locked entry that isn't a tag (install never moves branches; `update` does). The lock file
- * doesn't record the branch name, so changing one branch to another isn't noticed.
+ * without network access, so the request is classified like `resolveVersion` can't (it has no
+ * remote): a semver version or range first, then everything else by what the lock recorded.
+ *
+ * - semver version or range: the locked tag is a semver tag inside it (npm prerelease rules);
+ * - a commit (7-40 hex digits): the locked commit starts with it;
+ * - a branch name: `locked.branch` equals it;
+ * - a tag name: `locked.version` equals it.
+ *
+ * A lock entry without `branch` (written before the field existed) never satisfies a branch
+ * request, so `install` resolves it again once and records the branch.
  */
-export function lockSatisfies(requested: string, locked: { version: string | null; commit: string }): boolean {
+export function lockSatisfies(
+  requested: string,
+  locked: { version: string | null; branch?: string | null; commit: string },
+): boolean {
   const req = requested.trim();
   if (!req) return false;
   const tag = locked.version;
+  const sha = SHA_LIKE.test(req) && locked.commit.toLowerCase().startsWith(req.toLowerCase());
   if (semver.validRange(req)) {
-    if (tag !== null && semver.valid(tag) && semver.satisfies(tag, req)) return true;
-    return SHA_LIKE.test(req) && locked.commit.toLowerCase().startsWith(req.toLowerCase());
+    return (tag !== null && !!semver.valid(tag) && semver.satisfies(tag, req)) || sha;
   }
-  if (tag !== null) return tag === req;
-  if (SHA_LIKE.test(req)) return locked.commit.toLowerCase().startsWith(req.toLowerCase());
-  return true;
+  if (sha) return true;
+  if (locked.branch != null) return locked.branch === req;
+  return tag !== null && tag === req;
 }
 
 export type RewriteResult = { version: string; reason?: undefined } | { version: null; reason: string };

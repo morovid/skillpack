@@ -3,7 +3,7 @@ import { BindingError, bindingsFromOptions, formatBinding, agentIdFor, bindingOf
 import { GitError } from "../../core/git/index.js";
 import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
 import { HARNESS_INFO, type Harness } from "../../core/harness.js";
-import { fetchPack, PackError } from "../../core/install/fetch-pack.js";
+import { fetchPack, PackError, resolvedBranch } from "../../core/install/fetch-pack.js";
 import { planPackInstall } from "../../core/install/pipeline.js";
 import { InstallError, selectHarnesses, selectSkills } from "../../core/install/select.js";
 import { overlongScopedNames, scopeProblem } from "../../core/names.js";
@@ -137,7 +137,7 @@ export const add: Command = {
       cliVersion: CLI_VERSION,
       key: spec.key,
       pack,
-      resolved: { tag: resolved.tag, commit: resolved.commit },
+      resolved: { tag: resolved.tag, branch: resolvedBranch(resolved), commit: resolved.commit },
       packConfig,
       scope,
       config,
@@ -241,7 +241,11 @@ export const add: Command = {
     out(
       `\n${s.green(dryRun ? "✔ dry run: nothing written" : `✔ added ${pack.name} (${plural(plan.skills.length, "skill")}, ${plural(plan.excludePaths.length, "agent file")})`)}\n`,
     );
-    out(`Commit: skillpack.json, skillpack-lock.json, ${INSTALLED_SKILLS_DIR}/${scope.replaceAll("_", "-")}-*\n`);
+    if (!dryRun && plan.commitPaths.length > 0) {
+      const skillGlob = `${INSTALLED_SKILLS_DIR}/${scope.replaceAll("_", "-")}-*`;
+      const files = plan.commitPaths.map((p) => (p.startsWith(`${INSTALLED_SKILLS_DIR}/`) ? skillGlob : p));
+      out(`Commit: ${[...new Set(files)].join(", ")}\n`);
+    }
     return 0;
   },
 };

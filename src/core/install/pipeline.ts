@@ -13,7 +13,7 @@ export interface PackInstallInput {
   /** Normalized source key. */
   key: string;
   pack: LoadedPack;
-  resolved: { tag: string | null; commit: string };
+  resolved: { tag: string | null; branch: string | null; commit: string };
   /** The complete entry to save in skillpack.json (every binding explicit). */
   packConfig: PackConfig;
   /** Effective scope: `packConfig.scope` or the manifest name. */
@@ -38,6 +38,7 @@ export interface PackInstallPlan {
   outsideRepo: boolean;
   npxDuplicates: string[];
   files: TreeFile[];
+  commitPaths: string[];
 }
 
 /** Installs a single pack and saves it to skillpack.json (what `add` does). */
@@ -68,5 +69,6 @@ export async function planPackInstall(input: PackInstallInput): Promise<PackInst
     outsideRepo: plan.outsideRepo,
     npxDuplicates: d.npxDuplicates,
     files: [],
+    commitPaths: plan.commitPaths,
   };
 }

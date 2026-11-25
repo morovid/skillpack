@@ -203,9 +203,7 @@ export const install: Command = {
       out("\n");
       if (plan.ops.length === 0) out(s.green(`✔ already up to date (${plural(statuses.length, "pack")}); nothing written`) + "\n");
       else out(s.green(dryRun ? "✔ dry run: nothing written" : `✔ installed ${plural(statuses.length, "pack")}`) + "\n");
-      if (!dryRun && (plan.lockChanged || plan.skillActions.length > 0)) {
-        out("Commit: skillpack-lock.json and the changed .agents/skills folders\n");
-      }
+      if (!dryRun && plan.commitPaths.length > 0) out(`Commit: ${plan.commitPaths.join(", ")}\n`);
       return 0;
     } catch (e) {
       if (e instanceof PackError) {

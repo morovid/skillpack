@@ -32,6 +32,11 @@
             "type": ["string", "null"],
             "examples": ["v1.0.0"]
           },
+          "branch": {
+            "description": "The branch the pack was resolved from, or null when it wasn't resolved from a branch. skillpack always writes it; lock files from before it existed still validate.",
+            "type": ["string", "null"],
+            "examples": ["main"]
+          },
           "commit": {
             "description": "Full commit SHA the skills were rendered from.",
             "type": "string",
