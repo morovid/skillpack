@@ -16,6 +16,8 @@ export interface Prompts {
   select<T extends string>(o: { message: string; options: Option<T>[]; initial?: T }): Promise<T>;
   multiselect<T extends string>(o: { message: string; options: Option<T>[]; initial?: T[]; required?: boolean }): Promise<T[]>;
   confirm(o: { message: string; initial?: boolean }): Promise<boolean>;
+  /** Free text; `validate` returns an error message or undefined. */
+  text(o: { message: string; placeholder?: string; validate?: (value: string) => string | undefined }): Promise<string>;
 }
 
 /** R-CLI-3: prompts run only when both stdin and stdout are terminals. */
@@ -46,6 +48,16 @@ export function createClackPrompts(): Prompts {
       const options = o.options.map((x) => ({ value: x.value, label: x.label, ...(x.hint ? { hint: x.hint } : {}) }));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return done(await c.multiselect({ message: o.message, options: options as any, required: o.required ?? false, ...(o.initial ? { initialValues: o.initial } : {}) }) as any);
+    },
+    async text(o) {
+      const c = await clack();
+      return done<string>(
+        await c.text({
+          message: o.message,
+          ...(o.placeholder ? { placeholder: o.placeholder } : {}),
+          ...(o.validate ? { validate: (v: string | undefined) => o.validate!(v ?? "") } : {}),
+        }),
+      );
     },
     async confirm(o) {
       const c = await clack();

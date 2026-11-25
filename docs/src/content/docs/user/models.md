@@ -42,12 +42,16 @@ You don't need to write this file. When a model name has no entry, for example o
 3. **One match:** it's used. **Several matches:** you pick one. **No match:** you pick any available model or type one in.
 4. The choice is saved here.
 
-With `-y` there are no questions: with several matches, the provider of the harness's default model is preferred. With no match, or if you skip the question, the agent is generated without a model, so it uses the model of the agent that starts it, which can cost more. Both cases print a warning. `--strict` turns a missing match into an error.
+With `-y`, and in `install`, `sync` and non-interactive runs, there are no questions: with several matches the first by name (`provider/model`) is used. With no match, or if you skip the question, the agent is generated without a model, so it uses the model of the agent that starts it, which can cost more. Both cases print a warning. `--strict` turns a missing match, or an OpenCode model list that can't be read, into an error, and nothing is written.
 
 A missing model never changes the agent's binding in `skillpack.json`, so the committed skills stay the same for everyone.
 
-OpenCode's models come from `opencode models`. Codex models that can't be checked are accepted and reported as unverified.
+OpenCode's models come from `opencode models`. If that fails (OpenCode isn't installed), models can't be matched: the agents are generated without a model and a warning says so. `opencode models` doesn't list variants, so an agent's `effort` is written as the variant of the same name (`#high`) and reported as unverified.
+
+Codex's models come from the catalog bundled with the binary (`codex debug models --bundled`). Names are matched against it like OpenCode's. If `codex` isn't installed or the catalog can't be read, the first requested name is accepted as given and reported as unverified; `--strict` doesn't fail on that.
+
+`install --frozen-lockfile` never matches models and never writes this file.
 
 ## Changing a model
 
-Run `skillpack configure`, or edit the file and run `skillpack sync`. Only generated agents change; skills never depend on models.
+Run `skillpack configure --models` (asks for each model name), `skillpack configure --model sonnet-5.5=opencode:github-copilot/claude-sonnet-5.5`, or edit the file and run `skillpack sync`. `skillpack configure --show` lists every model the pack asks for with its status: `mapped`, `available` (not mapped yet, but one would match), `unavailable` (mapped, but no longer listed), `unverified` or `not mapped`. Only generated agents change; skills never depend on models.

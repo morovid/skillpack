@@ -105,6 +105,6 @@ describe("list", () => {
     });
     expect(j.packs[0].skillFolders.map((f: { status: string }) => f.status)).toEqual(["ok", "ok"]);
     expect(j.packs[0].agentFiles).toContainEqual({ agent: "scout", harness: "codex", path: ".codex/agents/tpack-scout.toml", status: "ok" });
-    expect(existsSync(join(project, "skillpack.models.json"))).toBe(false);
+    expect(existsSync(join(project, "skillpack.models.json"))).toBe(true); // written by add: Codex models are mapped
   });
 });

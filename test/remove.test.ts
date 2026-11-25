@@ -43,7 +43,7 @@ describe("remove a pack", () => {
     expect(Object.keys(readJson(project, "skillpack.json").packs)).toEqual([OTHER]);
     expect(Object.keys(readJson(project, "skillpack-lock.json").packs)).toEqual([OTHER]);
     expect(Object.keys(readJson(project, "skillpack.models.json").packs)).toEqual([OTHER]);
-    expect(exclude(project)).toBe("node_modules\n"); // block gone, user line kept
+    expect(exclude(project)).toBe("node_modules\n# >>> skillpack (managed; do not edit)\n/skillpack.models.json\n# <<< skillpack\n"); // only the models file (the other pack still has mappings); the user's line is kept
   });
 
   it("keeps the exclude block entries of other packs and the user's lines around it", async () => {

@@ -2,7 +2,7 @@ import { CancelledError, type Prompts } from "../../src/core/prompts/index.js";
 
 export const CANCEL = Symbol("cancel");
 export interface Asked {
-  kind: "select" | "multiselect" | "confirm";
+  kind: "select" | "multiselect" | "confirm" | "text";
   message: string;
   options?: { value: string; label: string; hint?: string }[];
   initial?: unknown;
@@ -21,6 +21,7 @@ export function scriptedPrompts(answers: unknown[]): { prompts: Prompts; asked: 
   const prompts: Prompts = {
     select: async (o) => next({ kind: "select", message: o.message, options: o.options, initial: o.initial }) as never,
     multiselect: async (o) => next({ kind: "multiselect", message: o.message, options: o.options, initial: o.initial }) as never,
+    text: async (o) => next({ kind: "text", message: o.message }) as never,
     confirm: async (o) => next({ kind: "confirm", message: o.message, initial: o.initial }) as never,
   };
   return { prompts, asked };

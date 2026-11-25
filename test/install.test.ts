@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { main } from "../src/main.js";
+import { noModels } from "./helpers/models.js";
 import { copyValid, createRemotes, initProject, write, type TestRemotes } from "./helpers/remotes.js";
 
 let remotes: TestRemotes;
@@ -39,6 +40,7 @@ async function cli(project: string, args: string[], o: { detected?: H[]; env?: R
     stdout: (t) => (out += t),
     stderr: (t) => (err += t),
     color: false,
+    models: noModels(),
   });
   return { code, out, err };
 }
@@ -70,6 +72,7 @@ async function clonedProject(args = ["add", "acme/skills@^1.1.0", "-a", "opencod
   git(project, "commit", "-q", "-m", "init");
   for (const d of [".opencode", ".codex"]) await import("node:fs").then((fs) => fs.rmSync(join(project, d), { recursive: true, force: true }));
   writeFileSync(join(project, ".git/info/exclude"), "");
+  rmSync(join(project, "skillpack.models.json"), { force: true }); // local, never committed: a fresh clone doesn't have it
   return project;
 }
 
@@ -85,13 +88,14 @@ describe("install", () => {
     expect(existsSync(join(project, ".opencode/agents/tpack-author.md"))).toBe(true);
     expect(existsSync(join(project, ".codex/agents/tpack-scout.toml"))).toBe(true);
     expect(readFileSync(join(project, ".opencode/agents/tpack-author.md"), "utf8")).not.toMatch(/^model:/m);
-    expect(r.out).toContain("model matching isn't available yet");
+    expect(r.out).toContain("OpenCode's model list isn't available");
     const exclude = readFileSync(join(project, ".git/info/exclude"), "utf8");
     expect(exclude).toContain("/.opencode/agents/tpack-author.md");
     expect(exclude).toContain("/.codex/agents/tpack-scout.toml");
     expect(readFileSync(join(project, "skillpack-lock.json"), "utf8")).toBe(lockBefore);
     expect(git(project, "status", "--porcelain")).toBe("");
-    expect(existsSync(join(project, "skillpack.models.json"))).toBe(false);
+    expect(existsSync(join(project, "skillpack.models.json"))).toBe(true); // matched again on the fresh clone
+    expect(exclude).toContain("/skillpack.models.json");
   });
 
   it("is idempotent and writes nothing the second time", async () => {
@@ -396,7 +400,8 @@ describe("branches in the lock", () => {
     await cli(project, BR);
     const commit = readJson(project, "skillpack-lock.json").packs[BKEY].commit;
     const pin = initProject();
-    expect((await cli(pin, ["add", `acme/branches@${commit.slice(0, 10)}`, "-a", "opencode", "-y"])).code).toBe(0);
+    const pinned = await cli(pin, ["add", `acme/branches@${commit.slice(0, 10)}`, "-a", "opencode", "-y"]);
+    expect(pinned.code, `${pinned.err}${pinned.out} (commit ${commit})`).toBe(0); // diagnostics for a rare flake
     expect(readJson(pin, "skillpack-lock.json").packs[BKEY]).toMatchObject({ ref: null, commit });
     const r = await cli(pin, ["install"]);
     expect(r.out).toContain(`✔ br ${commit.slice(0, 7)} (locked)`);

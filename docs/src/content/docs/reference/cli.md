@@ -15,7 +15,7 @@ This page is a stub. Content will be written from `requirements.md`.
 - `install` semantics, following `pnpm install`, and `--frozen-lockfile` as the default when `CI` is set.
 - What `add` writes as `version`: `^<latest tag>`, or the default branch.
 - Pack author commands: `validate`, `build`, `render`, `init`.
-- Flags: `-a/--harness`, `-s/--skill`, `--agent`, `--as`, `-y`, `--dry-run`, `--force`, `--frozen-lockfile`, `--strict`.
+- Flags: `-a/--harness`, `-s/--skill`, `--agent`, `--as`, `-y`, `--dry-run`, `--force`, `--frozen-lockfile`, `--strict` (fail when a model can't be matched), `--models` and `--model <name>=<harness>:<model>` for `configure`.
 - Project scope only: there's no `-g`.
 
 Requirements: R-SRC-1, R-SRC-4, R-CLI-1 to R-CLI-7, R-VER-2, R-VER-3, R-VER-6, R-VER-7, R-VER-7a.

@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { commands } from "./commands/index.js";
 import { UsageError, type CommandContext } from "./commands/types.js";
 import type { Harness } from "./core/harness.js";
+import type { ModelSource } from "./core/models/available.js";
 import { CancelledError, createClackPrompts, isInteractive, type Prompts } from "./core/prompts/index.js";
 import { colorEnabled } from "./core/output.js";
 import { CLI_VERSION } from "./core/version.js";
@@ -20,6 +21,8 @@ export interface Io {
   interactive?: boolean;
   /** Default: terminal prompts (only created when interactive). */
   prompts?: Prompts;
+  /** Test seam for the available models. */
+  models?: ModelSource;
 }
 
 export const defaultIo = (): Io => ({
@@ -77,6 +80,7 @@ export async function main(argv: string[], io: Io = defaultIo()): Promise<number
       color: io.color,
       env: io.env ?? process.env,
       interactive,
+      ...(io.models ? { models: io.models } : {}),
       ...(io.prompts ? { prompts: io.prompts } : interactive ? { prompts: createClackPrompts() } : {}),
       ...(io.detectHarnesses ? { detectHarnesses: io.detectHarnesses } : {}),
     };

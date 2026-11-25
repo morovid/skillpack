@@ -5,6 +5,8 @@ import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
 import { HARNESS_INFO, HARNESSES, type Harness } from "../../core/harness.js";
 import { PackError } from "../../core/install/fetch-pack.js";
 import { frozenSkillProblems, lockfileProblems, packsToRemove, prepareTargets } from "../../core/install/from-config.js";
+import { resolveTargetModels } from "../../core/install/models.js";
+import { createSystemModelSource } from "../../core/models/available.js";
 import { planProjectInstall } from "../../core/install/project.js";
 import { InstallError } from "../../core/install/select.js";
 import { createStyle, formatAgentWarnings, formatDiagnostics, plural } from "../../core/output.js";
@@ -27,11 +29,12 @@ const harnessOfPath = (p: string): Harness | null => HARNESSES.find((h) => p.sta
 export const install: Command = {
   name: "install",
   summary: "Make the project match skillpack.json and the lock file",
-  usage: "skillpack install [--frozen-lockfile | --no-frozen-lockfile] [--force] [--dry-run] [-y] [--json]",
+  usage: "skillpack install [--frozen-lockfile | --no-frozen-lockfile] [--force] [--strict] [--dry-run] [-y] [--json]",
   options: {
     "frozen-lockfile": { type: "boolean" },
     "no-frozen-lockfile": { type: "boolean" },
     force: { type: "boolean" },
+    strict: { type: "boolean" },
     "dry-run": { type: "boolean" },
     yes: { type: "boolean", short: "y" },
     json: { type: "boolean" },
@@ -40,6 +43,7 @@ export const install: Command = {
     "frozen-lockfile": "Only check the lock file and skills; fail without writing if they're out of date (default when CI is set)",
     "no-frozen-lockfile": "Don't check only, even when CI is set",
     force: "Overwrite skill folders and agent files that skillpack doesn't own or that were edited",
+    strict: "Fail when a model can't be matched or verified (instead of generating the agent without one)",
     "dry-run": "Show what would change and write nothing",
     yes: "Don't ask (install never asks)",
     json: "Print the result as JSON",
@@ -95,6 +99,11 @@ export const install: Command = {
         cliVersion: CLI_VERSION,
       });
       const removeKeys = packsToRemove(projectDir, config, lock);
+      // R-VER-6: --frozen-lockfile never matches models or writes the models file.
+      const modelResult = frozen
+        ? { changed: false, failures: [] as string[] }
+        : await resolveTargetModels({ projectDir, targets, source: ctx.models ?? createSystemModelSource(ctx.env), strict: ctx.values.strict === true });
+      if (modelResult.failures.length > 0) return fail(`model problems (--strict); nothing written:\n  ${modelResult.failures.join("\n  ")}`);
       const plan = await planProjectInstall({
         projectDir,
         cliVersion: CLI_VERSION,
@@ -106,6 +115,7 @@ export const install: Command = {
         restoreEdited: true,
         blockOnAgents: false,
         env: ctx.env,
+        ...("models" in modelResult && modelResult.models ? { models: modelResult.models } : {}),
       });
 
       if (frozen) {

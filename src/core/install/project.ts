@@ -27,6 +27,10 @@ export interface PackTarget {
   scope: string;
   /** Harnesses to generate agents for: the configured ones that are detected (all of them for `add`). */
   agentHarnesses: Harness[];
+  /** Concrete model of an agent in a harness (from `resolveTargetModels`); undefined = generate without a model. */
+  modelFor?: (agent: string, harness: Harness) => string | undefined;
+  /** Warnings from model matching, shown with the agent warnings. */
+  modelWarnings?: AgentWarning[];
 }
 
 export interface InstalledSkillInfo {
@@ -59,6 +63,8 @@ export interface ProjectInstallInput {
   targets: PackTarget[];
   /** Locked packs that are no longer configured. */
   removeKeys?: string[];
+  /** New content for skillpack.models.json (from `resolveTargetModels`); written in the same transaction and kept out of git. */
+  models?: { text: string };
   /** Write skillpack.json (add). Install never does. */
   writeConfig?: boolean;
   force?: boolean;
@@ -115,8 +121,6 @@ export interface ProjectInstallPlan {
   commitPaths: string[];
 }
 
-const MODEL_NOTE = "model matching isn't available yet; generated agents use the parent session's model";
-
 function splitSkillPath(path: string): [string, string] {
   const parts = path.split("/");
   return [parts.slice(0, 3).join("/"), parts.slice(3).join("/")];
@@ -136,6 +140,7 @@ function render(projectDir: string, lock: Lock | null, t: PackTarget): { desired
     harnesses,
     agentHarnesses: t.agentHarnesses,
     bindings,
+    ...(t.modelFor ? { modelFor: t.modelFor } : {}),
   });
 
   const desired: DesiredPack = { source: t.key, skills: new Map(), agents: new Map(), agentHarnesses: t.agentHarnesses };
@@ -173,8 +178,8 @@ function render(projectDir: string, lock: Lock | null, t: PackTarget): { desired
       bindings,
       agentIds,
       agentPaths: [...desired.agents.keys()].sort(),
-      warnings: rendered.warnings,
-      notes: desired.agents.size > 0 ? [MODEL_NOTE] : [],
+      warnings: [...rendered.warnings, ...(t.modelWarnings ?? [])],
+      notes: [],
       npxDuplicates: findNpxSkillsDuplicates({
         projectDir,
         key: t.key,
@@ -280,7 +285,10 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     };
     ops.push({ type: "write-json", path: CONFIG_FILE, content: serializeConfig(config), label: "config" });
   }
+  if (input.models) ops.push({ type: "write-json", path: MODELS_FILE, content: input.models.text, label: "models" });
   if (plan.lockChanged || lock === null) ops.push({ type: "write-json", path: LOCK_FILE, content: serializeLock(newLock), label: "lock" });
+  // The models file is local (R-SAF-7): keep it out of git when it is written or exists.
+  if (input.models || existsSync(join(projectDir, MODELS_FILE))) plan.excludePaths = [...new Set([...plan.excludePaths, MODELS_FILE])].sort();
   const drop = [
     ...(input.pruneExclude ? changes.ops.filter((o) => o.type === "delete-file" && o.label === "agent").map((o) => o.path) : []),
     ...(input.excludeRemove ?? []),
@@ -292,7 +300,7 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
       for (const src of listAgentSources(projectDir)) for (const p of findOwnedAgentFiles(projectDir, src)) final.add(p);
       for (const o of changes.ops) if (o.type === "delete-file" && o.label === "agent") final.delete(o.path);
       for (const p of plan.excludePaths) final.add(p);
-      if (existsSync(join(projectDir, MODELS_FILE))) final.add(MODELS_FILE);
+      if (input.models || existsSync(join(projectDir, MODELS_FILE))) final.add(MODELS_FILE);
       change = { set: [...final] };
     }
     const ex = await planExcludeUpdate(projectDir, change, input.env);

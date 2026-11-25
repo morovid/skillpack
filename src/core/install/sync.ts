@@ -40,6 +40,8 @@ export function planSync(o: {
   targets: PackTarget[];
   force?: boolean;
   writeConfig?: boolean;
+  /** New models file content from `resolveTargetModels`. */
+  models?: { text: string };
   env?: NodeJS.ProcessEnv;
 }): Promise<ProjectInstallPlan> {
   return planProjectInstall({
@@ -53,6 +55,7 @@ export function planSync(o: {
     blockOnAgents: false,
     exactExclude: true,
     ...(o.writeConfig ? { writeConfig: true } : {}),
+    ...(o.models ? { models: o.models } : {}),
     ...(o.env ? { env: o.env } : {}),
   });
 }

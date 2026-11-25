@@ -4,7 +4,10 @@ import { GitError } from "../../core/git/index.js";
 import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
 import { HARNESSES, HARNESS_INFO, type Harness } from "../../core/harness.js";
 import { fetchPack, PackError } from "../../core/install/fetch-pack.js";
+import { resolveTargetModels } from "../../core/install/models.js";
 import { planPackInstall } from "../../core/install/pipeline.js";
+import type { PackTarget } from "../../core/install/project.js";
+import { createSystemModelSource } from "../../core/models/available.js";
 import { InstallError, selectHarnesses, selectSkills } from "../../core/install/select.js";
 import { promptBindings } from "../../core/prompts/bindings.js";
 import { overlongScopedNames, scopeProblem } from "../../core/names.js";
@@ -24,7 +27,7 @@ export const add: Command = {
   name: "add",
   summary: "Install a skill pack into the current project",
   usage:
-    "skillpack add <source>[@version] [-a <harness>]... [-s <skills|*>]... [--agent <names|*|none>] [--as <scope>] [-y] [--dry-run] [--force] [--json]",
+    "skillpack add <source>[@version] [-a <harness>]... [-s <skills|*>]... [--agent <names|*|none>] [--as <scope>] [-y] [--dry-run] [--force] [--strict] [--json]",
   options: {
     harness: { type: "string", short: "a", multiple: true },
     skill: { type: "string", short: "s", multiple: true },
@@ -33,6 +36,7 @@ export const add: Command = {
     yes: { type: "boolean", short: "y" },
     "dry-run": { type: "boolean" },
     force: { type: "boolean" },
+    strict: { type: "boolean" },
     json: { type: "boolean" },
   },
   optionHelp: {
@@ -43,6 +47,7 @@ export const add: Command = {
     yes: "Don't ask; use the defaults",
     "dry-run": "Show what would change and write nothing",
     force: "Overwrite skill folders and agent files that skillpack doesn't own or that were edited",
+    strict: "Fail when a model can't be matched or verified (instead of generating the agent without one)",
     json: "Print the result as JSON",
   },
   async run(ctx) {
@@ -167,6 +172,29 @@ export const add: Command = {
     };
     if (asScope !== undefined) packConfig.scope = asScope;
 
+    const target: PackTarget = {
+      key: spec.key,
+      pack,
+      resolved: { ref: resolvedRef(resolved), commit: resolved.commit },
+      packConfig,
+      scope,
+      agentHarnesses: harnesses,
+    };
+    let modelResult;
+    try {
+      modelResult = await resolveTargetModels({
+        projectDir,
+        targets: [target],
+        source: ctx.models ?? createSystemModelSource(ctx.env),
+        prompts,
+        strict: ctx.values.strict === true,
+      });
+    } catch (e) {
+      if (e instanceof InstallError) return fail(e.message);
+      throw e;
+    }
+    if (modelResult.failures.length > 0) return fail(`model problems (--strict); nothing written:\n  ${modelResult.failures.join("\n  ")}`);
+
     const plan = await planPackInstall({
       projectDir,
       cliVersion: CLI_VERSION,
@@ -179,6 +207,9 @@ export const add: Command = {
       lock,
       env: ctx.env,
       force: ctx.values.force === true,
+      ...(target.modelFor ? { modelFor: target.modelFor } : {}),
+      ...(target.modelWarnings ? { modelWarnings: target.modelWarnings } : {}),
+      ...(modelResult.models ? { models: modelResult.models } : {}),
     });
 
     const versionLabel = resolved.tag

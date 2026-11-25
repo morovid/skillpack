@@ -4,6 +4,8 @@ import { detectHarnesses, systemDetectEnv } from "../../core/harness-detect.js";
 import { HARNESSES, isHarness, type Harness } from "../../core/harness.js";
 import { PackError } from "../../core/install/fetch-pack.js";
 import { removedKeys } from "../../core/install/from-config.js";
+import { resolveTargetModels } from "../../core/install/models.js";
+import { createSystemModelSource } from "../../core/models/available.js";
 import { formatBlocked, formatSyncReport, planSync, prepareSync } from "../../core/install/sync.js";
 import { InstallError } from "../../core/install/select.js";
 import { createStyle, formatDiagnostics } from "../../core/output.js";
@@ -19,10 +21,11 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v : v === undefine
 export const sync: Command = {
   name: "sync",
   summary: "Regenerate skills and agents from skillpack.json at the locked commits",
-  usage: "skillpack sync [pack]... [-a <harness>]... [--force] [--dry-run] [-y] [--json]",
+  usage: "skillpack sync [pack]... [-a <harness>]... [--force] [--strict] [--dry-run] [-y] [--json]",
   options: {
     harness: { type: "string", short: "a", multiple: true },
     force: { type: "boolean" },
+    strict: { type: "boolean" },
     "dry-run": { type: "boolean" },
     yes: { type: "boolean", short: "y" },
     json: { type: "boolean" },
@@ -30,6 +33,7 @@ export const sync: Command = {
   optionHelp: {
     harness: "Touch only this harness's agents, even if it isn't detected (repeatable)",
     force: "Overwrite skill folders and agent files that skillpack doesn't own or that were edited",
+    strict: "Fail when a model can't be matched or verified (instead of generating the agent without one)",
     "dry-run": "Show what would change and write nothing",
     yes: "Don't ask (sync never asks)",
     json: "Print the result as JSON",
@@ -63,7 +67,9 @@ export const sync: Command = {
       }
       const detected = ctx.detectHarnesses ? ctx.detectHarnesses(projectDir) : detectHarnesses(systemDetectEnv(projectDir, ctx.env));
       const { targets, statuses } = await prepareSync({ config, lock, keys, detected, harnessFlag: flag as Harness[], env: ctx.env, cliVersion: CLI_VERSION });
-      const plan = await planSync({ projectDir, cliVersion: CLI_VERSION, config, lock, targets, force: ctx.values.force === true, env: ctx.env });
+      const modelResult = await resolveTargetModels({ projectDir, targets, source: ctx.models ?? createSystemModelSource(ctx.env), strict: ctx.values.strict === true });
+      if (modelResult.failures.length > 0) return fail(`model problems (--strict); nothing written:\n  ${modelResult.failures.join("\n  ")}`);
+      const plan = await planSync({ projectDir, cliVersion: CLI_VERSION, config, lock, targets, force: ctx.values.force === true, env: ctx.env, ...(modelResult.models ? { models: modelResult.models } : {}) });
 
       if (plan.conflicts.length > 0 || plan.blocked.length > 0) {
         if (json) out(JSON.stringify({ ok: false, error: plan.conflicts.length ? "conflict" : "blocked", conflicts: plan.conflicts, blocked: plan.blocked }, null, 2) + "\n");

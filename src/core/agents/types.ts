@@ -21,7 +21,7 @@ export interface AgentSpec {
 export interface AgentWarning {
   agent: string;
   harness: Harness;
-  kind: "unenforced" | "mode" | "mcp";
+  kind: "unenforced" | "mode" | "mcp" | "model";
   message: string;
 }
 

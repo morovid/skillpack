@@ -205,9 +205,14 @@ export async function planRemove(i: RemoveInput): Promise<RemovePlan> {
 
   const modelsFile = join(projectDir, MODELS_FILE);
   const models = readModels(projectDir);
+  let modelsGone = !existsSync(modelsFile);
   if (models.status === "ok" && [...removedPacks].some((k) => k in models.value.packs)) {
     for (const k of removedPacks) removePackModels(models.value, k);
-    extraOps.push({ type: "write-json", path: MODELS_FILE, content: serializeModels(models.value), label: "models" });
+    if (Object.keys(models.value.packs).length === 0) {
+      // nothing left in the models file: remove it (and its exclude entry) instead of leaving an empty one
+      extraOps.push({ type: "delete-file", path: MODELS_FILE, label: "models" });
+      modelsGone = true;
+    } else extraOps.push({ type: "write-json", path: MODELS_FILE, content: serializeModels(models.value), label: "models" });
   }
 
   const plan = await planProjectInstall({
@@ -223,7 +228,7 @@ export async function planRemove(i: RemoveInput): Promise<RemovePlan> {
     blockOnAgents: true,
     deleteEditedOnRemove: false,
     pruneExclude: true,
-    ...(existsSync(modelsFile) ? {} : { excludeRemove: [MODELS_FILE] }),
+    ...(modelsGone ? { excludeRemove: [MODELS_FILE] } : {}),
     lockEdit: (l) => {
       for (const d of manualDrops) delete l.packs[d.key]?.skills[d.path];
     },

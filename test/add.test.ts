@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Prompts } from "../src/core/prompts/index.js";
 import { main } from "../src/main.js";
+import { noModels } from "./helpers/models.js";
 import { CANCEL, scriptedPrompts } from "./helpers/prompts.js";
 import { copyValid, createRemotes, initProject, write, type TestRemotes } from "./helpers/remotes.js";
 
@@ -43,6 +44,7 @@ async function cli(project: string, args: string[], detected: ("opencode" | "cod
     stdout: (t) => (out += t),
     stderr: (t) => (err += t),
     color: false,
+    models: noModels(),
     interactive: prompts !== undefined,
     ...(prompts ? { prompts } : {}),
   });
@@ -99,20 +101,20 @@ describe("add", () => {
     expect(author).not.toContain("# model:");
     expect(author).toContain("# binding: generate; model: none; effort: default");
     const codex = readFileSync(join(project, ".codex/agents/tpack-author.toml"), "utf8");
-    expect(codex).not.toMatch(/^model/m);
-    expect(codex).not.toContain("model_reasoning_effort");
-    expect(existsSync(join(project, "skillpack.models.json"))).toBe(false);
+    expect(codex).toContain('model = "sonnet-5.5"'); // Codex's list is unverified in tests: the requested name is used as given
+    expect(codex).toContain('model_reasoning_effort = "high"');
+    expect(readJson(project, "skillpack.models.json").packs["https://github.com/acme/skills"]["sonnet-5.5"]).toEqual({ codex: "sonnet-5.5" });
 
     const exclude = readFileSync(join(project, ".git/info/exclude"), "utf8");
     expect(exclude).toContain("# >>> skillpack (managed; do not edit)");
     expect(exclude).toContain("/.opencode/agents/tpack-author.md");
     expect(exclude).toContain("/.codex/agents/tpack-scout.toml");
-    expect(exclude).not.toContain("models");
+    expect(exclude).toContain("/skillpack.models.json");
 
     expect(r.out).toContain("tpack-review");
     expect(r.out).toContain("Executable scripts");
     expect(r.out).toContain(".agents/skills/tpack-review/scripts/check.sh");
-    expect(r.out).toContain("model matching isn't available yet");
+    expect(r.out).toContain("OpenCode's model list isn't available");
     expect(r.out).toMatch(/unenforced\s+author \(Codex\): \d+ restrictions not enforced/);
     expect(r.out).toContain("Commit: skillpack.json, skillpack-lock.json, .agents/skills/tpack-*");
     expect(r.out).toContain("v1.1.0 (^1.1.0)");

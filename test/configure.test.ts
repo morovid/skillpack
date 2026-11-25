@@ -210,7 +210,9 @@ describe("configure --show", () => {
     expect(r.out).toContain("harnesses  OpenCode, Codex");
     expect(r.out).toMatch(/scout\s+existing:explore\s+generate/);
     expect(r.out).toMatch(/author\s+generate\s+generate/);
-    expect(r.out).toContain("models: not available yet");
+    expect(r.out).toMatch(/models\n\s+model\s+harness\s+mapped to\s+status/);
+    expect(r.out).toMatch(/sonnet-5\.5\s+OpenCode\s+-\s+not mapped/);
+    expect(r.out).toMatch(/sonnet-5\.5\s+Codex\s+sonnet-5\.5\s+unverified/);
     expect(snapshot(project)).toEqual(before);
   });
 
@@ -218,7 +220,8 @@ describe("configure --show", () => {
     const project = await installed();
     const r = await cli(project, ["configure", "--show", "--json", "scout"]);
     const j = JSON.parse(r.out);
-    expect(j.packs[0]).toMatchObject({ source: KEY, scope: "tpack", harnesses: ["opencode", "codex"], models: null, warnings: [] });
+    expect(j.packs[0]).toMatchObject({ source: KEY, scope: "tpack", harnesses: ["opencode", "codex"], warnings: [] });
+    expect(j.packs[0].models).toContainEqual({ name: "haiku-4", harness: "codex", mapped: "haiku-4", status: "unverified" });
     expect(Object.keys(j.packs[0].bindings)).toEqual(["scout"]);
     expect(j.packs[0].bindings.scout).toEqual({ opencode: "generate", codex: "generate" });
     const bad = await cli(project, ["configure", "--show", "ghost"]);

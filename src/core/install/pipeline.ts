@@ -3,7 +3,7 @@ import type { Bindings } from "../bindings.js";
 import type { TreeFile } from "../fs/tree.js";
 import type { BlockedItem, Lock, PackConfig, ProjectOp, SelectionConfig } from "../project/index.js";
 import type { LoadedPack } from "./fetch-pack.js";
-import { planProjectInstall, type InstalledSkillInfo } from "./project.js";
+import { planProjectInstall, type InstalledSkillInfo, type PackTarget } from "./project.js";
 
 export type { InstalledSkillInfo } from "./project.js";
 
@@ -23,6 +23,10 @@ export interface PackInstallInput {
   env?: NodeJS.ProcessEnv;
   force?: boolean;
   restoreEdited?: boolean;
+  /** From `resolveTargetModels`. */
+  modelFor?: PackTarget["modelFor"];
+  modelWarnings?: PackTarget["modelWarnings"];
+  models?: { text: string };
 }
 
 export interface PackInstallPlan {
@@ -48,7 +52,8 @@ export async function planPackInstall(input: PackInstallInput): Promise<PackInst
     cliVersion: input.cliVersion,
     config: input.config,
     lock: input.lock,
-    targets: [{ key: input.key, pack: input.pack, resolved: input.resolved, packConfig: input.packConfig, scope: input.scope, agentHarnesses: input.packConfig.harnesses }],
+    targets: [{ key: input.key, pack: input.pack, resolved: input.resolved, packConfig: input.packConfig, scope: input.scope, agentHarnesses: input.packConfig.harnesses, ...(input.modelFor ? { modelFor: input.modelFor } : {}), ...(input.modelWarnings ? { modelWarnings: input.modelWarnings } : {}) }],
+    ...(input.models ? { models: input.models } : {}),
     writeConfig: true,
     blockOnAgents: true,
     ...(input.force !== undefined ? { force: input.force } : {}),
