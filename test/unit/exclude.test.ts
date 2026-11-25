@@ -38,6 +38,13 @@ describe("updateExcludeBlock", () => {
     expect(once).toBe(`a\r\n${BLOCK_START}\r\n/p\r\n${BLOCK_END}\r\n`);
     expect(updateExcludeBlock(once, { add: ["p"] })).toBe(once);
   });
+  it("set replaces the block's paths exactly and leaves the rest alone", () => {
+    const t = updateExcludeBlock("a\n", { add: ["x", "y"] });
+    const set = updateExcludeBlock(t + "b\n", { set: ["/y", "z"] });
+    expect(set).toBe(`a\n${BLOCK_START}\n/y\n/z\n${BLOCK_END}\nb\n`);
+    expect(updateExcludeBlock(set, { set: [] })).toBe("a\nb\n");
+    expect(updateExcludeBlock("a\n", { set: [] })).toBe("a\n");
+  });
   it("throws on an unterminated block", () => {
     expect(() => updateExcludeBlock(`${BLOCK_START}\n/a\n`, { add: ["b"] })).toThrow(ExcludeBlockError);
   });

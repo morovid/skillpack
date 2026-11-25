@@ -36,6 +36,16 @@ export function packsToRemove(projectDir: string, config: SelectionConfig, lock:
   return [...keys];
 }
 
+/** Why a configured pack can't be used at its locked commit (sync), or null when it can. */
+export function lockReason(config: SelectionConfig, lock: Lock | null, key: string): string | null {
+  const l = lock?.packs[key];
+  if (!l) return "not in the lock file";
+  const req = config.packs[key]!.version;
+  if (lockSatisfies(req, l)) return null;
+  const branch = refBranch(l.ref);
+  return branch ? `locked branch ${branch} doesn't match "${req}"` : `locked ${formatLockedRef(l.ref, l.commit)} doesn't satisfy "${req}"`;
+}
+
 export interface PackStatus {
   key: string;
   name: string;
@@ -58,13 +68,28 @@ export async function prepareTargets(o: {
   detected: readonly Harness[];
   /** Generate agents for no harness (frozen-lockfile checks). */
   noAgents?: boolean;
+  /** Only these packs (default: all configured). */
+  keys?: readonly string[];
+  /** sync: never resolve a version; every pack must be locked and satisfied, else this throws one InstallError listing them all. */
+  lockedOnly?: boolean;
+  /** sync -a: touch only these harnesses (even if not detected) instead of the detected ones. */
+  harnessFlag?: readonly Harness[];
   env?: NodeJS.ProcessEnv;
   cliVersion: string;
 }): Promise<{ targets: PackTarget[]; statuses: PackStatus[] }> {
   const states = lockStates(o.config, o.lock);
+  const keys = o.keys ?? Object.keys(o.config.packs);
+  if (o.lockedOnly) {
+    const problems = keys.flatMap((k) => {
+      const r = lockReason(o.config, o.lock, k);
+      return r ? [`${k}: ${r}; run skillpack install (or update) to change versions`] : [];
+    });
+    if (problems.length > 0) throw new InstallError(problems.join("\n"));
+  }
   const targets: PackTarget[] = [];
   const statuses: PackStatus[] = [];
-  for (const [key, cfg] of Object.entries(o.config.packs)) {
+  for (const key of keys) {
+    const cfg = o.config.packs[key]!;
     const state = states.get(key)!;
     const locked = o.lock?.packs[key];
     const spec = parseSourceSpec(key);
@@ -77,7 +102,8 @@ export async function prepareTargets(o: {
     const { pack, resolved } = fetched;
     const scope = cfg.scope ?? pack.name;
     checkPackConfig(key, cfg, pack.skills.map((s) => s.name), pack.agents.map((a) => a.name), pack.harnesses, scope);
-    const agentHarnesses = o.noAgents ? [] : cfg.harnesses.filter((h) => o.detected.includes(h));
+    const touch = (h: Harness): boolean => (o.harnessFlag && o.harnessFlag.length > 0 ? o.harnessFlag.includes(h) : o.detected.includes(h));
+    const agentHarnesses = o.noAgents ? [] : cfg.harnesses.filter(touch);
     targets.push({ key, pack, resolved: { ref: resolvedRef(resolved), commit: resolved.commit }, packConfig: cfg, scope, agentHarnesses });
     statuses.push({
       key,
@@ -86,7 +112,7 @@ export async function prepareTargets(o: {
       ref: resolvedRef(resolved),
       commit: resolved.commit,
       requested: cfg.version,
-      skippedHarnesses: o.noAgents ? [] : cfg.harnesses.filter((h) => !o.detected.includes(h)),
+      skippedHarnesses: o.noAgents ? [] : cfg.harnesses.filter((h) => !touch(h) && !(o.harnessFlag && o.harnessFlag.length > 0)),
     });
   }
   return { targets, statuses };

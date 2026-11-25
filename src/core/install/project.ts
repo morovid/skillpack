@@ -1,14 +1,16 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { agentIdFor, bindingOf, type Bindings } from "../bindings.js";
 import type { AgentWarning } from "../agents/index.js";
 import type { TreeFile } from "../fs/tree.js";
 import type { Harness } from "../harness.js";
 import { scopedName } from "../names.js";
 import {
-  emptyLock, findOwnedAgentFiles, lockOwner, packBindings, planChanges, planExcludeUpdate, pruneNoops, serializeConfig, serializeLock,
+  emptyLock, findOwnedAgentFiles, listAgentSources, lockOwner, packBindings, planChanges, planExcludeUpdate, pruneNoops, serializeConfig, serializeLock,
   type BlockedItem, type DesiredPack, type Lock, type PackConfig, type ProjectOp, type SelectionConfig, type SkillAction,
 } from "../project/index.js";
 import { refTag } from "../project/lock.js";
-import { CONFIG_FILE, INSTALLED_SKILLS_DIR, LOCK_FILE } from "../project/paths.js";
+import { CONFIG_FILE, INSTALLED_SKILLS_DIR, LOCK_FILE, MODELS_FILE } from "../project/paths.js";
 import type { LoadedPack } from "./fetch-pack.js";
 import { findNpxSkillsDuplicates } from "./npx-skills.js";
 import { planInstall } from "./plan.js";
@@ -69,6 +71,8 @@ export interface ProjectInstallInput {
   deleteEditedOnRemove?: boolean;
   /** Drop the exclude entries of the agent files this plan deletes (`remove` only, R-SAF-7). */
   pruneExclude?: boolean;
+  /** Make the exclude block list exactly the generated agent files that exist afterwards (every file with a skillpack header, minus the ones this plan deletes, plus the ones it writes) and the models file if present (`sync`). */
+  exactExclude?: boolean;
   /** More exclude entries to drop (e.g. a models file that no longer exists). */
   excludeRemove?: string[];
   /** Edits the new lock after it is cloned from `lock` (for changes the planner doesn't know about). */
@@ -281,8 +285,17 @@ export async function planProjectInstall(input: ProjectInstallInput): Promise<Pr
     ...(input.pruneExclude ? changes.ops.filter((o) => o.type === "delete-file" && o.label === "agent").map((o) => o.path) : []),
     ...(input.excludeRemove ?? []),
   ];
-  if (plan.excludePaths.length > 0 || drop.length > 0) {
-    const ex = await planExcludeUpdate(projectDir, { add: plan.excludePaths, remove: drop }, input.env);
+  if (plan.excludePaths.length > 0 || drop.length > 0 || input.exactExclude) {
+    let change: { add?: string[]; remove?: string[]; set?: string[] } = { add: plan.excludePaths, remove: drop };
+    if (input.exactExclude) {
+      const final = new Set<string>();
+      for (const src of listAgentSources(projectDir)) for (const p of findOwnedAgentFiles(projectDir, src)) final.add(p);
+      for (const o of changes.ops) if (o.type === "delete-file" && o.label === "agent") final.delete(o.path);
+      for (const p of plan.excludePaths) final.add(p);
+      if (existsSync(join(projectDir, MODELS_FILE))) final.add(MODELS_FILE);
+      change = { set: [...final] };
+    }
+    const ex = await planExcludeUpdate(projectDir, change, input.env);
     if (ex !== null && "outsideRepo" in ex) plan.outsideRepo = true;
     else if (ex !== null) ops.push(ex);
   }

@@ -20,7 +20,7 @@ export async function findGitExcludePath(projectDir: string, env?: NodeJS.Proces
  */
 export async function planExcludeUpdate(
   projectDir: string,
-  change: { add?: readonly string[]; remove?: readonly string[] },
+  change: { add?: readonly string[]; remove?: readonly string[]; set?: readonly string[] },
   env?: NodeJS.ProcessEnv,
 ): Promise<ProjectOp | null | { outsideRepo: true }> {
   const path = await findGitExcludePath(projectDir, env);

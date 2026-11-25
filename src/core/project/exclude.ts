@@ -20,7 +20,10 @@ export function parseExcludeBlock(text: string): { found: boolean; paths: string
  * (exact paths with a leading `/`, sorted, deduped). Lines outside the block are never touched. A
  * missing block is appended at the end; an empty block is removed.
  */
-export function updateExcludeBlock(text: string, change: { add?: readonly string[]; remove?: readonly string[] }): string {
+export function updateExcludeBlock(
+  text: string,
+  change: { add?: readonly string[]; remove?: readonly string[]; /** Replace the block's paths with exactly these. */ set?: readonly string[] },
+): string {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text === "" ? [] : text.split(/\r?\n/);
   const hadFinalNewline = text.endsWith("\n");
@@ -31,7 +34,7 @@ export function updateExcludeBlock(text: string, change: { add?: readonly string
   if (start !== -1 && end === -1) throw new ExcludeBlockError(`found "${BLOCK_START}" without "${BLOCK_END}"`);
 
   const current = start === -1 ? [] : lines.slice(start + 1, end).filter((l) => l.startsWith("/"));
-  const set = new Set(current);
+  const set = new Set(change.set ? change.set.map(excludeLine) : current);
   for (const p of change.add ?? []) set.add(excludeLine(p));
   for (const p of change.remove ?? []) set.delete(excludeLine(p));
   const paths = [...set].sort();
