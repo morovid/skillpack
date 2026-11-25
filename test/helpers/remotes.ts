@@ -10,6 +10,10 @@ export interface TestRemotes {
   env: NodeJS.ProcessEnv;
   /** Creates a bare repo served at https://github.com/<ownerRepo>. */
   add(ownerRepo: string, steps: RemoteStep[]): void;
+  /** Adds a commit (and optionally a tag) to a repo created with `add`, and pushes it. */
+  push(ownerRepo: string, step: RemoteStep): void;
+  /** Maps https://github.com/<ownerRepo> to an arbitrary path (e.g. one that doesn't exist). */
+  alias(ownerRepo: string, path: string): void;
 }
 
 export interface RemoteStep {
@@ -37,9 +41,21 @@ export function createRemotes(): TestRemotes {
     GIT_TERMINAL_PROMPT: "0",
   };
   writeFileSync(gitconfig, "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n[protocol \"file\"]\n\tallow = always\n[commit]\n\tgpgsign = false\n");
+  const bares = new Map<string, { work: string; bare: string }>();
   return {
     root,
     env,
+    alias(ownerRepo, path) {
+      writeFileSync(gitconfig, `${require_read(gitconfig)}[url "${path}"]\n\tinsteadOf = https://github.com/${ownerRepo}\n`);
+    },
+    push(ownerRepo, step) {
+      const { work, bare } = bares.get(ownerRepo)!;
+      step.apply(work);
+      run(work, ["add", "-A"], env);
+      run(work, ["commit", "-q", "--allow-empty", "-m", "push"], env);
+      if (step.tag) run(work, ["tag", step.tag], env);
+      run(work, ["push", "-q", "--tags", bare, "HEAD:refs/heads/main"], env);
+    },
     add(ownerRepo, steps) {
       const work = join(root, "work", ownerRepo);
       const bare = join(root, "bare", `${ownerRepo}.git`);
@@ -53,6 +69,7 @@ export function createRemotes(): TestRemotes {
       });
       mkdirSync(dirname(bare), { recursive: true });
       run(root, ["clone", "-q", "--bare", work, bare], env);
+      bares.set(ownerRepo, { work, bare });
       rules.push(`[url "${bare}"]\n\tinsteadOf = https://github.com/${ownerRepo}\n`);
       writeFileSync(gitconfig, `${require_read(gitconfig)}${rules[rules.length - 1]}`);
     },

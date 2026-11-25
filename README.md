@@ -46,6 +46,7 @@ Currently implemented:
 
 - `skillpack validate [dir] [--strict] [--json]`
 - `skillpack build [dir] [--check] [--json]`: writes the plain build to `skills/` (owned by `build`: stale folders are removed); `--check` exits 1 if it's out of date.
+- `skillpack check [pack…] [--exit-code] [--json]`, `skillpack update [pack…]` and `skillpack upgrade [pack…] [--include-prerelease]`: show newer versions (read-only), move within the requested range, or move to the newest version and rewrite `version` in `skillpack.json`.
 - `skillpack render [dir] [-a <harness>] [--agent …] [--bind <agent>[.<harness>]=<binding>] [--as <scope>] [--out <dir>] [--json]`: previews an install (shared skills, generated OpenCode and Codex agents, bindings, unenforced-restriction warnings); `--out` writes the tree into an empty directory.
 
 ## Publishing

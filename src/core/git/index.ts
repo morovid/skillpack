@@ -54,6 +54,9 @@ export async function fetchCommit(url: string, sha: string, dest: string, option
   await mkdir(dest, { recursive: true });
   const o = { ...options, cwd: dest };
   await runGit(["init", "--quiet"], o);
+  // a throwaway checkout: no background gc or maintenance (it races with the cleanup)
+  await runGit(["config", "gc.auto", "0"], o);
+  await runGit(["config", "maintenance.auto", "false"], o);
   await runGit(["remote", "add", "origin", url], o);
   try {
     await runGit(["fetch", "--quiet", "--depth", "1", "origin", sha], o);
@@ -79,6 +82,7 @@ export async function withTempCheckout<T>(fn: (dir: string) => Promise<T>): Prom
   try {
     return await fn(dir);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    // git may still have a background process (auto gc/maintenance) writing into the checkout; retry on ENOTEMPTY
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }

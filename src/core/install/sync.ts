@@ -87,6 +87,8 @@ export function formatSyncReport(o: {
   orphans?: string[];
   /** Word for the final line: "synced", "configured". */
   verb: string;
+  /** The first line of a pack (default: `✔ name ref (verb)`). */
+  headline?: (st: PackStatus, index: number) => string;
   s: Style;
 }): string {
   const { plan, statuses, s } = o;
@@ -94,7 +96,7 @@ export function formatSyncReport(o: {
   const touched = new Set(plan.ops.map((x) => x.path));
   const changedAgents = plan.targets.map((t) => t.agentPaths.filter((p) => touched.has(p)));
   for (const [i, st] of statuses.entries()) {
-    out += `${s.green("✔")} ${st.name} ${formatLockedRef(st.ref, st.commit)} (${o.verb})\n`;
+    out += (o.headline ? o.headline(st, i) : `${s.green("✔")} ${st.name} ${formatLockedRef(st.ref, st.commit)} (${o.verb})`) + "\n";
     for (const h of HARNESSES) {
       const ids = changedAgents[i]!.filter((p) => harnessOfPath(p) === h).map((p) => p.split("/").pop()!.replace(/\.(md|toml)$/, ""));
       if (ids.length > 0) out += s.dim(`    agents (${HARNESS_INFO[h].displayName}): ${ids.join(", ")}`) + "\n";

@@ -118,7 +118,7 @@ export async function prepareTargets(o: {
   return { targets, statuses };
 }
 
-function checkPackConfig(key: string, cfg: PackConfig, skills: string[], agents: string[], supported: Harness[] | null, scope: string): void {
+export function checkPackConfig(key: string, cfg: PackConfig, skills: string[], agents: string[], supported: Harness[] | null, scope: string): void {
   if (cfg.skills !== "*") {
     const missing = cfg.skills.filter((n) => !skills.includes(n));
     if (missing.length > 0) throw new InstallError(`${key}: skillpack.json lists skills the pack doesn't have: ${missing.join(", ")}`);
@@ -175,3 +175,7 @@ export function frozenSkillProblems(plan: ProjectInstallPlan, lock: Lock | null)
   }
   return out;
 }
+
+/** Harnesses to generate agent files for: the configured ones named with `-a`, else the detected ones. */
+export const touchedHarnesses = (configured: readonly Harness[], detected: readonly Harness[], flag?: readonly Harness[]): Harness[] =>
+  configured.filter((h) => (flag && flag.length > 0 ? flag.includes(h) : detected.includes(h)));
